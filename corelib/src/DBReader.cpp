@@ -27,7 +27,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "rtabmap/core/DBReader.h"
 #include "rtabmap/core/DBDriver.h"
-#include "DBDriverSqlite3.h"
 
 #include <rtabmap/utilite/ULogger.h>
 #include <rtabmap/utilite/UFile.h>
@@ -49,20 +48,23 @@ DBReader::DBReader(const std::string & databasePath,
 				   bool ignoreGoalDelay,
 				   bool goalsIgnored,
 				   int startIndex,
-				   int cameraIndex) :
+				   int cameraIndex,
+				   int maxFrames) :
 	Camera(frameRate),
 	_paths(uSplit(databasePath, ';')),
 	_odometryIgnored(odometryIgnored),
 	_ignoreGoalDelay(ignoreGoalDelay),
 	_goalsIgnored(goalsIgnored),
 	_startIndex(startIndex),
+	_maxFrames(maxFrames),
 	_cameraIndex(cameraIndex),
 	_dbDriver(0),
 	_currentId(_ids.end()),
 	_previousMapId(-1),
 	_previousStamp(0),
 	_previousMapID(0),
-	_calibrated(false)
+	_calibrated(false),
+	_framesPublished(0)
 {
 }
 
@@ -72,20 +74,23 @@ DBReader::DBReader(const std::list<std::string> & databasePaths,
 				   bool ignoreGoalDelay,
 				   bool goalsIgnored,
 				   int startIndex,
-				   int cameraIndex) :
+				   int cameraIndex,
+				   int maxFrames) :
 	Camera(frameRate),
    _paths(databasePaths),
 	_odometryIgnored(odometryIgnored),
 	_ignoreGoalDelay(ignoreGoalDelay),
 	_goalsIgnored(goalsIgnored),
 	_startIndex(startIndex),
+	_maxFrames(maxFrames),
 	_cameraIndex(cameraIndex),
 	_dbDriver(0),
 	_currentId(_ids.end()),
 	_previousMapId(-1),
 	_previousStamp(0),
 	_previousMapID(0),
-	_calibrated(false)
+	_calibrated(false),
+	_framesPublished(0)
 {
 }
 
@@ -115,6 +120,7 @@ bool DBReader::init(
 	_previousStamp = 0;
 	_previousMapID = 0;
 	_calibrated = false;
+	_framesPublished = 0;
 
 	if(_paths.size() == 0)
 	{
@@ -131,7 +137,7 @@ bool DBReader::init(
 
 	rtabmap::ParametersMap parameters;
 	parameters.insert(rtabmap::ParametersPair(rtabmap::Parameters::kDbSqlite3InMemory(), "false"));
-	_dbDriver = new DBDriverSqlite3(parameters);
+	_dbDriver = DBDriver::create(parameters);
 	if(!_dbDriver)
 	{
 		UERROR("Driver doesn't exist.");
@@ -213,6 +219,12 @@ std::string DBReader::getSerial() const
 
 SensorData DBReader::captureImage(CameraInfo * info)
 {
+	if(_maxFrames>0 && ++_framesPublished > _maxFrames)
+	{
+		UINFO("Maximum frames (%d) reached!", _maxFrames);
+		return SensorData();
+	}
+
 	SensorData data = this->getNextData(info);
 	if(data.id() == 0)
 	{
@@ -232,6 +244,7 @@ SensorData DBReader::captureImage(CameraInfo * info)
 			}
 		}
 	}
+
 	if(data.id())
 	{
 		std::string goalId;
@@ -267,7 +280,10 @@ SensorData DBReader::captureImage(CameraInfo * info)
 						double stamp;
 						int mapId;
 						Transform localTransform, pose, groundTruth;
-						_dbDriver->getNodeInfo(*_currentId, pose, mapId, weight, label, stamp, groundTruth);
+						std::vector<float> velocity;
+						GPS gps;
+						EnvSensors sensors;
+						_dbDriver->getNodeInfo(*_currentId, pose, mapId, weight, label, stamp, groundTruth, velocity, gps, sensors);
 						if(previousStamp && stamp && stamp > previousStamp)
 						{
 							delay = stamp - previousStamp;
@@ -311,16 +327,33 @@ SensorData DBReader::getNextData(CameraInfo * info)
 	{
 		if(_currentId != _ids.end())
 		{
-			int mapId;
-			_dbDriver->getNodeData(*_currentId, data);
+			std::list<int> signIds;
+			signIds.push_back(*_currentId);
+			std::list<Signature *> signatures;
+			_dbDriver->loadSignatures(signIds, signatures);
+			if(signatures.empty())
+			{
+				return data;
+			}
+			_dbDriver->loadNodeData(signatures);
+			Signature * s  = signatures.front();
+			data = s->sensorData();
 
 			// info
-			Transform pose;
-			int weight;
-			std::string label;
-			double stamp;
-			Transform groundTruth;
-			_dbDriver->getNodeInfo(*_currentId, pose, mapId, weight, label, stamp, groundTruth);
+			Transform pose = s->getPose();
+			Transform globalPose;
+			cv::Mat globalPoseCov;
+
+			std::map<int, Link> priorLinks;
+			_dbDriver->loadLinks(*_currentId, priorLinks, Link::kPosePrior);
+			if( priorLinks.size() &&
+				!priorLinks.begin()->second.transform().isNull() &&
+				priorLinks.begin()->second.infMatrix().cols == 6 &&
+				priorLinks.begin()->second.infMatrix().rows == 6)
+			{
+				globalPose = priorLinks.begin()->second.transform();
+				globalPoseCov = priorLinks.begin()->second.infMatrix().inv();
+			}
 
 			cv::Mat infMatrix = cv::Mat::eye(6,6,CV_64FC1);
 			if(!_odometryIgnored)
@@ -333,11 +366,11 @@ SensorData DBReader::getNextData(CameraInfo * info)
 					infMatrix = links.begin()->second.infMatrix();
 					_previousInfMatrix = infMatrix;
 				}
-				else if(_previousMapId != mapId)
+				else if(_previousMapId != s->mapId())
 				{
 					// first node, set high variance to make rtabmap trigger a new map
 					infMatrix /= 9999.0;
-					UDEBUG("First node of map %d, variance set to 9999", mapId);
+					UDEBUG("First node of map %d, variance set to 9999", s->mapId());
 				}
 				else
 				{
@@ -348,7 +381,7 @@ SensorData DBReader::getNextData(CameraInfo * info)
 					// we have a node not linked to map, use last variance
 					infMatrix = _previousInfMatrix;
 				}
-				_previousMapId = mapId;
+				_previousMapId = s->mapId();
 			}
 			else
 			{
@@ -357,26 +390,24 @@ SensorData DBReader::getNextData(CameraInfo * info)
 
 			int seq = *_currentId;
 			++_currentId;
-			if(data.imageCompressed().empty() && weight>=0)
-			{
-				UWARN("No image loaded from the database for id=%d!", *_currentId);
-			}
 
 			// Frame rate
 			if(this->getImageRate() < 0.0f)
 			{
-				if(stamp == 0)
+				if(s->getStamp() == 0)
 				{
 					UERROR("The option to use database stamps is set (framerate<0), but there are no stamps saved in the database! Aborting...");
+					delete s;
 					return data;
 				}
-				else if(_previousMapID == mapId && _previousStamp > 0)
+				else if(_previousMapID == s->mapId() && _previousStamp > 0)
 				{
-					int sleepTime = 1000.0*(stamp-_previousStamp) - 1000.0*_timer.getElapsedTime();
+					float ratio = -this->getImageRate();
+					int sleepTime = 1000.0*(s->getStamp()-_previousStamp)/ratio - 1000.0*_timer.getElapsedTime();
 					if(sleepTime > 10000)
 					{
 						UWARN("Detected long delay (%d sec, stamps = %f vs %f). Waiting a maximum of 10 seconds.",
-								sleepTime/1000, _previousStamp, stamp);
+								sleepTime/1000, _previousStamp, s->getStamp());
 						sleepTime = 10000;
 					}
 					if(sleepTime > 2)
@@ -385,17 +416,17 @@ SensorData DBReader::getNextData(CameraInfo * info)
 					}
 
 					// Add precision at the cost of a small overhead
-					while(_timer.getElapsedTime() < (stamp-_previousStamp)-0.000001)
+					while(_timer.getElapsedTime() < (s->getStamp()-_previousStamp)/ratio-0.000001)
 					{
 						//
 					}
 
 					double slept = _timer.getElapsedTime();
 					_timer.start();
-					UDEBUG("slept=%fs vs target=%fs", slept, stamp-_previousStamp);
+					UDEBUG("slept=%fs vs target=%fs (ratio=%f)", slept, (s->getStamp()-_previousStamp)/ratio, ratio);
 				}
-				_previousStamp = stamp;
-				_previousMapID = mapId;
+				_previousStamp = s->getStamp();
+				_previousMapID = s->mapId();
 			}
 
 			data.uncompressData();
@@ -406,24 +437,23 @@ SensorData DBReader::getNextData(CameraInfo * info)
 				{
 					// select one camera
 					int subImageWidth = data.imageRaw().cols/data.cameraModels().size();
+					cv::Mat image;
 					UASSERT(!data.imageRaw().empty() &&
 							data.imageRaw().cols % data.cameraModels().size() == 0 &&
 							_cameraIndex*subImageWidth < data.imageRaw().cols);
-					data.setImageRaw(
-							cv::Mat(data.imageRaw(),
-							cv::Rect(_cameraIndex*subImageWidth, 0, subImageWidth, data.imageRaw().rows)).clone());
+					image= cv::Mat(data.imageRaw(),
+						   cv::Rect(_cameraIndex*subImageWidth, 0, subImageWidth, data.imageRaw().rows)).clone();
 
+					cv::Mat depth;
 					if(!data.depthOrRightRaw().empty())
 					{
 						UASSERT(data.depthOrRightRaw().cols % data.cameraModels().size() == 0 &&
 								subImageWidth == data.depthOrRightRaw().cols/(int)data.cameraModels().size() &&
 								_cameraIndex*subImageWidth < data.depthOrRightRaw().cols);
-						data.setDepthOrRightRaw(
-								cv::Mat(data.depthOrRightRaw(),
-								cv::Rect(_cameraIndex*subImageWidth, 0, subImageWidth, data.depthOrRightRaw().rows)).clone());
+						depth = cv::Mat(data.depthOrRightRaw(),
+							    cv::Rect(_cameraIndex*subImageWidth, 0, subImageWidth, data.depthOrRightRaw().rows)).clone();
 					}
-					CameraModel model = data.cameraModels().at(_cameraIndex);
-					data.setCameraModel(model);
+					data.setRGBDImage(image, depth, data.cameraModels().at(_cameraIndex));
 				}
 				else
 				{
@@ -431,13 +461,52 @@ SensorData DBReader::getNextData(CameraInfo * info)
 				}
 			}
 			data.setId(seq);
-			data.setStamp(stamp);
-			data.setGroundTruth(groundTruth);
-			UDEBUG("Laser=%d RGB/Left=%d Depth/Right=%d, UserData=%d",
-					data.laserScanRaw().empty()?0:1,
+			data.setStamp(s->getStamp());
+			data.setGroundTruth(s->getGroundTruthPose());
+			if(globalPose.isNull())
+			{
+				data.setGlobalPose(globalPose, globalPoseCov);
+			}
+
+			UDEBUG("Laser=%d RGB/Left=%d Depth/Right=%d, Grid=%d, UserData=%d",
+					data.laserScanRaw().isEmpty()?0:1,
 					data.imageRaw().empty()?0:1,
 					data.depthOrRightRaw().empty()?0:1,
+					data.gridCellSize()==0.0f?0:1,
 					data.userDataRaw().empty()?0:1);
+
+			cv::Mat descriptors;
+			if(!s->getWordsDescriptors().empty())
+			{
+				descriptors = cv::Mat(
+					s->getWordsDescriptors().size(),
+					s->getWordsDescriptors().begin()->second.cols,
+					s->getWordsDescriptors().begin()->second.type());
+				int i=0;
+				for(std::multimap<int, cv::Mat>::const_iterator iter=s->getWordsDescriptors().begin();
+					iter!=s->getWordsDescriptors().end();
+					++iter, ++i)
+				{
+					iter->second.copyTo(descriptors.row(i));
+				}
+			}
+			std::vector<cv::KeyPoint> keypoints = uValues(s->getWords());
+			std::vector<cv::Point3f> keypoints3D = uValues(s->getWords3());
+			if(!keypoints.empty() &&
+			   (keypoints3D.empty() || keypoints.size() == keypoints3D.size()) &&
+			   (descriptors.empty() || (int)keypoints.size() == descriptors.rows))
+			{
+				data.setFeatures(keypoints, keypoints3D, descriptors);
+			}
+			else if(!keypoints.empty() && (!keypoints3D.empty() || !descriptors.empty()))
+			{
+				UERROR("Missing feature data, features won't be published.");
+			}
+
+			if(data.imageCompressed().empty() && s->getWeight()>=0 && keypoints.empty())
+			{
+				UWARN("No image loaded from the database for id=%d!", seq);
+			}
 
 			if(!_odometryIgnored)
 			{
@@ -451,9 +520,11 @@ SensorData DBReader::getNextData(CameraInfo * info)
 				{
 					info->odomPose = pose;
 					info->odomCovariance = infMatrix.inv();
+					info->odomVelocity = s->getVelocity();
 					UDEBUG("odom variance = %f/%f", info->odomCovariance.at<double>(0,0), info->odomCovariance.at<double>(5,5));
 				}
 			}
+			delete s;
 		}
 	}
 	else

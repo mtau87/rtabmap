@@ -29,7 +29,8 @@ class GestureCamera : public Camera {
     kFirstPerson = 0,
     kThirdPersonFollow = 1,
     kTopDown = 2,
-    kThirdPerson = 3
+	kTopOrtho = 3,
+    kThirdPerson = 4
   };
 
   enum TouchEvent {
@@ -80,6 +81,7 @@ class GestureCamera : public Camera {
   glm::quat cam_cur_target_rot_;
 
   float cam_start_dist_;
+  float cam_start_fov_;
   float cam_cur_dist_;
   glm::vec3 anchor_offset_;
 

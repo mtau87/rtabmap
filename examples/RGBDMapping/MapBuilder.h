@@ -38,6 +38,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "rtabmap/core/util3d_filtering.h"
 #include "rtabmap/core/util3d_transforms.h"
 #include "rtabmap/core/RtabmapEvent.h"
+#include "rtabmap/core/OccupancyGrid.h"
 #endif
 #include "rtabmap/utilite/UStl.h"
 #include "rtabmap/utilite/UConversion.h"
@@ -85,7 +86,7 @@ public:
 		this->unregisterFromEventsManager();
 	}
 
-protected slots:
+protected Q_SLOTS:
 	virtual void pauseDetection()
 	{
 		UWARN("");
@@ -170,7 +171,7 @@ protected slots:
 		//============================
 		const std::map<int, Transform> & poses = stats.poses();
 		QMap<std::string, Transform> clouds = cloudViewer_->getAddedClouds();
-		for(std::map<int, Transform>::const_iterator iter = poses.begin(); iter!=poses.end(); ++iter)
+		for(std::map<int, Transform>::const_iterator iter = poses.lower_bound(1); iter!=poses.end(); ++iter)
 		{
 			if(!iter->second.isNull())
 			{
@@ -191,9 +192,9 @@ protected slots:
 					}
 					cloudViewer_->setCloudVisibility(cloudName, true);
 				}
-				else if(uContains(stats.getSignatures(), iter->first))
+				else if(iter->first == stats.getLastSignatureData().id())
 				{
-					Signature s = stats.getSignatures().at(iter->first);
+					Signature s = stats.getLastSignatureData();
 					s.sensorData().uncompressData(); // make sure data is uncompressed
 					// Add the new cloud
 					pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud = util3d::cloudRGBFromSensorData(
@@ -229,7 +230,7 @@ protected slots:
 			// Set graph
 			pcl::PointCloud<pcl::PointXYZ>::Ptr graph(new pcl::PointCloud<pcl::PointXYZ>);
 			pcl::PointCloud<pcl::PointXYZ>::Ptr graphNodes(new pcl::PointCloud<pcl::PointXYZ>);
-			for(std::map<int, Transform>::const_iterator iter=poses.begin(); iter!=poses.end(); ++iter)
+			for(std::map<int, Transform>::const_iterator iter=poses.lower_bound(1); iter!=poses.end(); ++iter)
 			{
 				graph->push_back(pcl::PointXYZ(iter->second.x(), iter->second.y(), iter->second.z()));
 			}
@@ -240,6 +241,35 @@ protected slots:
 			cloudViewer_->addOrUpdateGraph("graph", graph, Qt::gray);
 			cloudViewer_->addCloud("graph_nodes", graphNodes, Transform::getIdentity(), Qt::green);
 			cloudViewer_->setCloudPointSize("graph_nodes", 5);
+		}
+
+		//============================
+		// Update/add occupancy grid (when RGBD/CreateOccupancyGrid is true)
+		//============================
+		if(grid_.addedNodes().find(stats.getLastSignatureData().id()) == grid_.addedNodes().end())
+		{
+			if(stats.getLastSignatureData().sensorData().gridCellSize() > 0.0f)
+			{
+				cv::Mat groundCells, obstacleCells, emptyCells;
+				stats.getLastSignatureData().sensorData().uncompressDataConst(0, 0, 0, 0, &groundCells, &obstacleCells, &emptyCells);
+				grid_.addToCache(stats.getLastSignatureData().id(), groundCells, obstacleCells, emptyCells);
+			}
+		}
+
+		if(grid_.addedNodes().size() || grid_.cacheSize())
+		{
+			grid_.update(stats.poses());
+		}
+		if(grid_.addedNodes().size())
+		{
+			float xMin, yMin;
+			cv::Mat map8S = grid_.getMap(xMin, yMin);
+			if(!map8S.empty())
+			{
+				//convert to gray scaled map
+				cv::Mat map8U = util3d::convertMap2Image8U(map8S);
+				cloudViewer_->addOccupancyGridMap(map8U, grid_.getCellSize(), xMin, yMin, 0.75);
+			}
 		}
 
 		odometryCorrection_ = stats.mapCorrection();
@@ -283,6 +313,7 @@ protected:
 	Transform odometryCorrection_;
 	bool processingStatistics_;
 	bool lastOdometryProcessed_;
+	OccupancyGrid grid_;
 };
 
 

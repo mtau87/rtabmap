@@ -25,8 +25,8 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef CALIBRATIONDIALOG_H_
-#define CALIBRATIONDIALOG_H_
+#ifndef RTABMAP_CALIBRATIONDIALOG_H_
+#define RTABMAP_CALIBRATIONDIALOG_H_
 
 #include "rtabmap/gui/RtabmapGuiExp.h" // DLL export/import defines
 
@@ -70,7 +70,7 @@ public:
 
 	StereoCameraModel stereoCalibration(const CameraModel & left, const CameraModel & right, bool ignoreStereoRectification) const;
 
-public slots:
+public Q_SLOTS:
 	void setBoardWidth(int width);
 	void setBoardHeight(int height);
 	void setSquareSize(double size);
@@ -81,7 +81,7 @@ public slots:
 	void restart();
 	bool save();
 
-private slots:
+private Q_SLOTS:
 	void unlock();
 
 protected:

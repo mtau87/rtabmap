@@ -81,20 +81,17 @@ void StatItem::clearCache()
 {
 	_x.clear();
 	_y.clear();
+	_value->clear();
 }
 
 void StatItem::addValue(float y)
 {
 	if(_cacheOn)
 	{
-		if(_y.size() % 100)
-		{
-			_y.reserve(_y.size()+100);
-		}
 		_y.push_back(y);
 	}
 	_value->setText(QString::number(y, 'g', 3));
-	emit valueAdded(y);
+	Q_EMIT valueAdded(y);
 }
 
 void StatItem::addValue(float x, float y)
@@ -106,20 +103,12 @@ void StatItem::addValue(float x, float y)
 			clearCache();
 		}
 
-		if(_y.size() % 100)
-		{
-			_y.reserve(_y.size()+100);
-		}
 		_y.push_back(y);
-		if(_x.size() % 100)
-		{
-			_x.reserve(_x.size()+100);
-		}
 		_x.push_back(x);
 	}
 
 	_value->setText(QString::number(y, 'g', 3));
-	emit valueAdded(x,y);
+	Q_EMIT valueAdded(x,y);
 }
 
 void StatItem::setValues(const std::vector<float> & x, const std::vector<float> & y)
@@ -137,7 +126,7 @@ void StatItem::setValues(const std::vector<float> & x, const std::vector<float> 
 	{
 		_value->setText("*");
 	}
-	emit valuesChanged(x,y);
+	Q_EMIT valuesChanged(x,y);
 }
 
 QString StatItem::value() const
@@ -213,7 +202,7 @@ void StatItem::preparePlotRequest()
 	QAction * action = qobject_cast<QAction*>(sender());
 	if(action)
 	{
-		emit plotRequested(this, action->text());
+		Q_EMIT plotRequested(this, action->text());
 	}
 }
 
@@ -319,6 +308,10 @@ void StatsToolBox::updateStat(const QString & statFullName, const std::vector<fl
 			grp = list.at(0);
 			name = list.at(1);
 			unit = list.at(2);
+			for(int i=3; i<list.size(); ++i)
+			{
+				unit += "/" + list.at(i);
+			}
 		}
 		else if(list.size() == 2)
 		{
@@ -422,7 +415,7 @@ void StatsToolBox::plot(const StatItem * stat, const QString & plotName)
 			{
 				ULOGGER_WARN("Already added to the figure");
 			}
-			emit figuresSetupChanged();
+			Q_EMIT figuresSetupChanged();
 		}
 		else
 		{
@@ -486,9 +479,9 @@ void StatsToolBox::plot(const StatItem * stat, const QString & plotName)
 			delete curve;
 		}
 		figure->show();
-		emit figuresSetupChanged();
+		Q_EMIT figuresSetupChanged();
 
-		emit menuChanged(_plotMenu);
+		Q_EMIT menuChanged(_plotMenu);
 	}
 }
 
@@ -507,11 +500,11 @@ void StatsToolBox::figureDeleted(QObject * obj)
 				{
 					_plotMenu->removeAction(actions.at(i));
 					delete actions[i];
-					emit menuChanged(_plotMenu);
+					Q_EMIT menuChanged(_plotMenu);
 					break;
 				}
 			}
-			emit figuresSetupChanged();
+			Q_EMIT figuresSetupChanged();
 		}
 		else
 		{

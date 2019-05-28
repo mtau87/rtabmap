@@ -16,12 +16,16 @@
 
 #include <tango-gl/conversions.h>
 #include <tango-gl/gesture_camera.h>
+#include <tango-gl/util.h>
 
 #include <rtabmap/utilite/ULogger.h>
 #include <rtabmap/utilite/UStl.h>
 #include <rtabmap/utilite/UTimer.h>
 #include <rtabmap/core/util3d_filtering.h>
+#include <rtabmap/core/util3d_transforms.h>
+#include <rtabmap/core/util3d_surface.h>
 #include <pcl/common/transforms.h>
+#include <pcl/common/common.h>
 
 #include <glm/gtx/transform.hpp>
 
@@ -32,7 +36,7 @@
 // add an offset in z to our origin. We'll set this offset to 1.3 meters based
 // on the average height of a human standing with a Tango device. This allows us
 // to place a grid roughly on the ground for most users.
-const glm::vec3 kHeightOffset = glm::vec3(0.0f, 1.3f, 0.0f);
+const glm::vec3 kHeightOffset = glm::vec3(0.0f, -1.3f, 0.0f);
 
 // Color of the motion tracking trajectory.
 const tango_gl::Color kTraceColor(0.66f, 0.66f, 0.66f);
@@ -86,6 +90,7 @@ Scene::Scene() :
 		boundingBoxRendering_(false),
 		lighting_(false),
 		backfaceCulling_(true),
+		wireFrame_(false),
 		r_(0.0f),
 		g_(0.0f),
 		b_(0.0f),
@@ -97,7 +102,7 @@ Scene::Scene() :
 {
 	gesture_camera_ = new tango_gl::GestureCamera();
 	gesture_camera_->SetCameraType(
-	      tango_gl::GestureCamera::kFirstPerson);
+	      tango_gl::GestureCamera::kThirdPersonFollow);
 }
 
 Scene::~Scene() {
@@ -129,7 +134,7 @@ void Scene::InitGLContent()
 	trace_->ClearVertexArray();
 	trace_->SetColor(kTraceColor);
 	grid_->SetColor(kGridColor);
-	grid_->SetPosition(-kHeightOffset);
+	grid_->SetPosition(kHeightOffset);
 	box_->SetShader();
 	box_->SetColor(1,0,0);
 
@@ -183,6 +188,10 @@ void Scene::clear()
 	{
 		delete iter->second;
 	}
+	for(std::map<int, tango_gl::Axis*>::iterator iter=markers_.begin(); iter!=markers_.end(); ++iter)
+	{
+		delete iter->second;
+	}
 	if(trace_)
 	{
 		trace_->ClearVertexArray();
@@ -193,6 +202,11 @@ void Scene::clear()
 		graph_ = 0;
 	}
 	pointClouds_.clear();
+	markers_.clear();
+	if(grid_)
+	{
+		grid_->SetPosition(kHeightOffset);
+	}
 }
 
 //Should only be called in OpenGL thread!
@@ -201,7 +215,7 @@ void Scene::SetupViewPort(int w, int h) {
 		LOGE("Setup graphic height not valid");
 	}
 	UASSERT(gesture_camera_ != 0);
-	gesture_camera_->SetAspectRatio(static_cast<float>(w) / static_cast<float>(h));
+	gesture_camera_->SetWindowSize(static_cast<float>(w), static_cast<float>(h));
 	glViewport(0, 0, w, h);
 	if(screenWidth_ != w || fboId_ == 0)
 	{
@@ -426,7 +440,7 @@ int Scene::Render() {
 
 	UTimer timer;
 
-	bool onlineBlending = blending_ && mapRendering_ && meshRendering_ && cloudsToDraw.size()>1;
+	bool onlineBlending = blending_ && gesture_camera_->GetCameraType()!=tango_gl::GestureCamera::kTopOrtho && mapRendering_ && meshRendering_ && cloudsToDraw.size()>1;
 	if(onlineBlending && fboId_)
 	{
 		// set the rendering destination to FBO
@@ -533,13 +547,19 @@ int Scene::Render() {
 				cloud->getPose().z() - openglCamera.z());
 		float distanceToCameraSqr = cloudToCamera[0]*cloudToCamera[0] + cloudToCamera[1]*cloudToCamera[1] + cloudToCamera[2]*cloudToCamera[2];
 
-		cloud->Render(projectionMatrix, viewMatrix, meshRendering_, pointSize_, meshRenderingTexture_, lighting_, distanceToCameraSqr, onlineBlending?depthTexture_:0, screenWidth_, screenHeight_, gesture_camera_->getNearClipPlane(), gesture_camera_->getFarClipPlane());
+		cloud->Render(projectionMatrix, viewMatrix, meshRendering_, pointSize_, meshRenderingTexture_, lighting_, distanceToCameraSqr, onlineBlending?depthTexture_:0, screenWidth_, screenHeight_, gesture_camera_->getNearClipPlane(), gesture_camera_->getFarClipPlane(), false, wireFrame_);
 	}
 
 	if(onlineBlending)
 	{
 		glDisable (GL_BLEND);
 		glDepthMask(GL_TRUE);
+	}
+
+	//draw markers on foreground
+	for(std::map<int, tango_gl::Axis*>::const_iterator iter=markers_.begin(); iter!=markers_.end(); ++iter)
+	{
+		iter->second->Render(projectionMatrix, viewMatrix);
 	}
 
 	return (int)cloudsToDraw.size();
@@ -556,6 +576,24 @@ void Scene::SetCameraPose(const rtabmap::Transform & pose)
 	*currentPose_ = pose;
 }
 
+void Scene::setFOV(float angle)
+{
+	gesture_camera_->SetFieldOfView(angle);
+}
+void Scene::setOrthoCropFactor(float value)
+{
+	gesture_camera_->SetOrthoCropFactor(value);
+}
+void Scene::setGridRotation(float angleDeg)
+{
+	float angleRad = angleDeg * DEGREE_2_RADIANS;
+	if(grid_)
+	{
+		glm::quat rot = glm::rotate(glm::quat(1,0,0,0), angleRad, glm::vec3(0, 1, 0));
+		grid_->SetRotation(rot);
+	}
+}
+
 rtabmap::Transform Scene::GetOpenGLCameraPose(float * fov) const
 {
 	if(fov)
@@ -563,7 +601,6 @@ rtabmap::Transform Scene::GetOpenGLCameraPose(float * fov) const
 		*fov = gesture_camera_->getFOV();
 	}
 	return glmToTransform(gesture_camera_->GetTransformationMatrix());
-
 }
 
 void Scene::OnTouchEvent(int touch_count,
@@ -622,6 +659,53 @@ void Scene::setTraceVisible(bool visible)
 }
 
 //Should only be called in OpenGL thread!
+void Scene::addMarker(
+		int id,
+		const rtabmap::Transform & pose)
+{
+	LOGI("add marker %d", id);
+	std::map<int, tango_gl::Axis*>::iterator iter=markers_.find(id);
+	if(iter == markers_.end())
+	{
+		//create
+		tango_gl::Axis * drawable = new tango_gl::Axis();
+		drawable->SetScale(glm::vec3(0.05f,0.05f,0.05f));
+		drawable->SetLineWidth(5);
+		markers_.insert(std::make_pair(id, drawable));
+	}
+	setMarkerPose(id, pose);
+}
+void Scene::setMarkerPose(int id, const rtabmap::Transform & pose)
+{
+	UASSERT(!pose.isNull());
+	std::map<int, tango_gl::Axis*>::iterator iter=markers_.find(id);
+	if(iter != markers_.end())
+	{
+		glm::vec3 position(pose.x(), pose.y(), pose.z());
+		Eigen::Quaternionf quat = pose.getQuaternionf();
+		glm::quat rotation(quat.w(), quat.x(), quat.y(), quat.z());
+		iter->second->SetPosition(position);
+		iter->second->SetRotation(rotation);
+	}
+}
+bool Scene::hasMarker(int id) const
+{
+	return markers_.find(id) != markers_.end();
+}
+void Scene::removeMarker(int id)
+{
+	std::map<int, tango_gl::Axis*>::iterator iter=markers_.find(id);
+	if(iter != markers_.end())
+	{
+		delete iter->second;
+		markers_.erase(iter);
+	}
+}
+std::set<int> Scene::getAddedMarkers() const
+{
+	return uKeysSet(markers_);
+}
+
 void Scene::addCloud(
 		int id,
 		const pcl::PointCloud<pcl::PointXYZRGB>::Ptr & cloud,
@@ -645,7 +729,8 @@ void Scene::addCloud(
 void Scene::addMesh(
 		int id,
 		const Mesh & mesh,
-		const rtabmap::Transform & pose)
+		const rtabmap::Transform & pose,
+		bool createWireframe)
 {
 	LOGI("add mesh %d", id);
 	std::map<int, PointCloudDrawable*>::iterator iter=pointClouds_.find(id);
@@ -656,9 +741,61 @@ void Scene::addMesh(
 	}
 
 	//create
-	PointCloudDrawable * drawable = new PointCloudDrawable(mesh);
+	PointCloudDrawable * drawable = new PointCloudDrawable(mesh, createWireframe);
 	drawable->setPose(pose);
 	pointClouds_.insert(std::make_pair(id, drawable));
+
+	if(!mesh.pose.isNull() && mesh.cloud->size() && (!mesh.cloud->isOrganized() || mesh.indices->size()))
+	{
+		UTimer time;
+		float height = 0.0f;
+		Eigen::Affine3f affinePose = mesh.pose.toEigen3f();
+		if(mesh.polygons.size())
+		{
+			for(unsigned int i=0; i<mesh.polygons.size(); ++i)
+			{
+				for(unsigned int j=0; j<mesh.polygons[i].vertices.size(); ++j)
+				{
+					pcl::PointXYZRGB pt = pcl::transformPoint(mesh.cloud->at(mesh.polygons[i].vertices[j]), affinePose);
+					if(pt.z < height)
+					{
+						height = pt.z;
+					}
+				}
+			}
+		}
+		else
+		{
+			if(mesh.cloud->isOrganized())
+			{
+				for(unsigned int i=0; i<mesh.indices->size(); ++i)
+				{
+					pcl::PointXYZRGB pt = pcl::transformPoint(mesh.cloud->at(mesh.indices->at(i)), affinePose);
+					if(pt.z < height)
+					{
+						height = pt.z;
+					}
+				}
+			}
+			else
+			{
+				for(unsigned int i=0; i<mesh.cloud->size(); ++i)
+				{
+					pcl::PointXYZRGB pt = pcl::transformPoint(mesh.cloud->at(i), affinePose);
+					if(pt.z < height)
+					{
+						height = pt.z;
+					}
+				}
+			}
+		}
+
+		if(grid_->GetPosition().y == kHeightOffset.y || grid_->GetPosition().y > height)
+		{
+			grid_->SetPosition(glm::vec3(0,height,0));
+		}
+		LOGD("compute min height %f s", time.ticks());
+	}
 }
 
 

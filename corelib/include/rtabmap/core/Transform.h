@@ -56,6 +56,8 @@ public:
 	// x,y, theta
 	Transform(float x, float y, float theta);
 
+	Transform clone() const;
+
 	float r11() const {return data()[0];}
 	float r12() const {return data()[1];}
 	float r13() const {return data()[2];}
@@ -112,6 +114,7 @@ public:
 	float getDistance(const Transform & t) const;
 	float getDistanceSquared(const Transform & t) const;
 	Transform interpolate(float t, const Transform & other) const;
+	void normalizeRotation();
 	std::string prettyPrint() const;
 
 	Transform operator*(const Transform & t) const;
@@ -151,6 +154,21 @@ private:
 };
 
 RTABMAP_EXP std::ostream& operator<<(std::ostream& os, const Transform& s);
+
+class TransformStamped
+{
+public:
+	TransformStamped(const Transform & transform, const double & stamp) :
+		transform_(transform),
+		stamp_(stamp)
+	{}
+	const Transform & transform() const {return transform_;}
+	const double & stamp() const {return stamp_;}
+
+private:
+	Transform transform_;
+	double stamp_;
+};
 
 }
 

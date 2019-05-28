@@ -28,6 +28,7 @@ public class RTABMapLib
     public static native void setScreenRotation(int displayRotation, int cameraRotation);
     
     public static native int openDatabase(String databasePath, boolean databaseInMemory, boolean optimize);
+    public static native int openDatabase2(String databaseSource, String databasePath, boolean databaseInMemory, boolean optimize);
     
     /*
      * Called when the Tango service is connected.
@@ -77,8 +78,12 @@ public class RTABMapLib
     public static native void setMaxCloudDepth(float value);
     public static native void setMinCloudDepth(float value);
     public static native void setPointSize(float value);
+    public static native void setFOV(float value);
+    public static native void setOrthoCropFactor(float value);
+    public static native void setGridRotation(float value);
     public static native void setLighting(boolean enabled);
     public static native void setBackfaceCulling(boolean enabled);
+    public static native void setWireframe(boolean enabled);
     public static native void setCloudDensityLevel(int value);
     public static native void setMeshAngleTolerance(float value);
     public static native void setMeshTriangleSize(int value);
@@ -87,16 +92,24 @@ public class RTABMapLib
     public static native void setRenderingTextureDecimation(int value);
     public static native void setBackgroundColor(float gray);
     public static native int setMappingParameter(String key, String value);
+    public static native void setGPS(
+			double stamp,
+			double longitude, 
+			double latitude, 
+			double altitude,  
+			double accuracy,
+			double bearing);
+    public static native void addEnvSensor(int type, float value);
 
     public static native void resetMapping();
     public static native void save(String outputDatabasePath);
     public static native void cancelProcessing();
     public static native boolean exportMesh(
-    		String filePath,
     		float cloudVoxelSize,
     		boolean regenerateCloud,
     		boolean meshing,
     		int textureSize,
+    		int textureCount,
     		int normalK,
     		boolean optimized,
     		float optimizedVoxelSize,
@@ -104,10 +117,11 @@ public class RTABMapLib
     		int optimizedMaxPolygons,
     		float optimizedColorRadius,
     		boolean optimizedCleanWhitePolygons,
-    		boolean optimizedColorWhitePolygons,
+    		int optimizedMinClusterSize,
     		float optimizedMaxTextureDistance,
     		int optimizedMinTextureClusterSize,
     		boolean blockRendering);
+    public static native boolean writeExportedMesh(String directory, String name);
     public static native boolean postExportation(boolean visualize);
     public static native int postProcessing(int approach);
     

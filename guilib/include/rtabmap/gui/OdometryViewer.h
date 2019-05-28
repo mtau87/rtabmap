@@ -25,8 +25,8 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef ODOMETRYVIEWER_H_
-#define ODOMETRYVIEWER_H_
+#ifndef RTABMAP_ODOMETRYVIEWER_H_
+#define RTABMAP_ODOMETRYVIEWER_H_
 
 #include "rtabmap/gui/RtabmapGuiExp.h" // DLL export/import defines
 
@@ -60,13 +60,13 @@ public:
 		const ParametersMap & parameters = ParametersMap());
 	virtual ~OdometryViewer();
 
-public slots:
+public Q_SLOTS:
 	virtual void clear();
 
 protected:
 	virtual bool handleEvent(UEvent * event);
 
-private slots:
+private Q_SLOTS:
 	void reset();
 	void processData(const rtabmap::OdometryEvent & odom);
 

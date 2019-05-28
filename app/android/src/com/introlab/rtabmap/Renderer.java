@@ -42,6 +42,7 @@ public class Renderer implements GLSurfaceView.Renderer {
 	private TextManager mTextManager = null;
 	private float mSurfaceHeight = 0.0f;
 	private float mTextColor = 1.0f;
+	private int mOffset = 0;
 	
 	private Vector<TextObject> mTexts;
 
@@ -64,6 +65,11 @@ public class Renderer implements GLSurfaceView.Renderer {
 	public void setToast(Toast toast)
 	{
 		mToast = toast;
+	}
+	
+	public void setOffset(int offset)
+	{
+		mOffset = offset;
 	}
 
 	// Render loop of the Gl context.
@@ -94,7 +100,9 @@ public class Renderer implements GLSurfaceView.Renderer {
 					mTextManager.PrepareDraw(txtcollection);
 				}
 				
-				mTextManager.Draw(mtrxProjectionAndView);
+				float[] mvp = new float[16];
+				Matrix.translateM(mvp, 0, mtrxProjectionAndView, 0, 0, mOffset, 0);
+				mTextManager.Draw(mvp);
 			}
 
 			if(value != 0 && mProgressDialog != null && mProgressDialog.isShowing())
@@ -103,6 +111,7 @@ public class Renderer implements GLSurfaceView.Renderer {
 					public void run() {
 						if(!RTABMapActivity.DISABLE_LOG) Log.i("RTABMapActivity", "Renderer: dismiss dialog, value received=" + String.valueOf(value));
 						mProgressDialog.dismiss();
+						mActivity.resetNoTouchTimer();
 					}
 				});
 			}

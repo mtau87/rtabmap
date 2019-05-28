@@ -8,15 +8,14 @@
     <string name="sketchfab">Upload to Sketchfab&#8230;</string>
     <string name="status">"Status: "</string>
     <string name="words">"Words: "</string>
-    <string name="first_person">First</string>
-    <string name="third_person">Third</string>
-    <string name="top_down">Top</string>
+    <string name="camera_button">First View</string>
     <string name="pause">Pause</string>
     <string name="resume">Resume</string>
     <string name="backface_on">Backface</string>
     <string name="backface_off">Backface</string>
     <string name="light_on">Lighting</string>
     <string name="light_off">Lighting</string>
+    <string name="wireframe">Wireframe</string>
     <string name="close_visualization">Close Visualization</string>
     <string name="save_to_file">Export to File&#8230;</string>
     <string name="share_to_sketchfab">Share to Sketchfab&#8230;</string>
@@ -35,12 +34,19 @@
     <string name="memory">"Used Memory (MB): "</string>
     <string name="hypothesis">"Hypothesis (%): "</string>
     <string name="fps">"FPS (rendering): "</string>
-
+    <string name="distance">"Distance travelled: "</string>
+    <string name="gps">"GPS (long,lat,alt,bearing,err): "</string>
+    <string name="env_sensors">"Sensors: "</string>
+    <string name="time">"Time: "</string>
+    
     <!-- Preference keys: BEGIN -->
     <string name="pref_key_tags">pref_key_tags</string>
     <string name="pref_default_tags">rtabmap 3dscan tango</string>
     <string name="pref_key_rendering">pref_key_rendering</string>
     <string name="pref_default_rendering">2</string>
+    <string name="pref_key_open_button">pref_key_open_button</string>
+    <string name="pref_key_save_button">pref_key_save_button</string>
+    <string name="pref_key_remove_button">pref_key_remove_button</string>
     <string name="pref_key_reset_button">pref_key_reset_button</string>
     <string name="pref_key_density">pref_key_density</string>
     <string name="pref_default_density">1</string>
@@ -49,7 +55,7 @@
     <string name="pref_key_depth">pref_key_depth</string>
     <string name="pref_default_depth">2.5</string>
     <string name="pref_key_point_size">pref_key_point_size</string>
-    <string name="pref_default_point_size">5</string>
+    <string name="pref_default_point_size">10</string>
     <string name="pref_key_angle">pref_key_angle</string>
     <string name="pref_default_angle">20</string>
     <string name="pref_key_triangle">pref_key_triangle</string>
@@ -73,6 +79,8 @@
     
     <string name="pref_key_update_rate">pref_key_update_rate</string>
     <string name="pref_default_update_rate">1</string>
+    <string name="pref_key_max_speed">pref_key_max_speed</string>
+    <string name="pref_default_max_speed">0</string>
     <string name="pref_key_time_thr">pref_key_time_thr</string>
     <string name="pref_default_time_thr">1000</string>
     <string name="pref_key_mem_thr">pref_key_mem_thr</string>
@@ -84,7 +92,7 @@
     <string name="pref_key_min_inliers">pref_key_min_inliers</string>
     <string name="pref_default_min_inliers">25</string>
     <string name="pref_key_opt_error">pref_key_opt_error</string>
-    <string name="pref_default_opt_error">0.1</string>
+    <string name="pref_default_opt_error">3</string>
     <string name="pref_key_features_voc">pref_key_features_voc</string>
     <string name="pref_default_features_voc">200</string>
     <string name="pref_key_features">pref_key_features</string>
@@ -95,17 +103,27 @@
     <string name="pref_default_optimizer">2</string>
     <string name="pref_key_optimize_end">pref_key_optimize_end</string>
     <string name="pref_default_optimize_end">true</string>
+    <string name="pref_key_marker_detection">pref_key_marker_detection</string>
+    <string name="pref_default_marker_detection">-1</string>
+    <string name="pref_key_marker_detection_depth_error">pref_key_marker_detection_depth_error</string>
+    <string name="pref_default_marker_detection_depth_error">0.1</string>
     <string name="pref_key_keep_all_db">pref_key_keep_all_db</string>
     <string name="pref_default_keep_all_db">true</string>
     <string name="pref_key_raw_scan_saved">pref_key_raw_scan_saved</string>
     <string name="pref_default_raw_scan_saved">false</string>
+    <string name="pref_key_gps_saved">pref_key_gps_saved</string>
+    <string name="pref_default_gps_saved">false</string>
+    <string name="pref_key_env_sensors_saved">pref_key_env_sensors_saved</string>
+    <string name="pref_default_env_sensors_saved">false</string>
     <string name="pref_key_db_in_memory">pref_key_db_in_memory</string>
-    <string name="pref_default_db_in_memory">true</string>
+    <string name="pref_default_db_in_memory">false</string>
     
     <string name="pref_key_cloud_voxel">pref_key_cloud_voxel</string>
     <string name="pref_default_cloud_voxel">0.01</string>
     <string name="pref_key_texture_size">pref_key_texture_size</string>
     <string name="pref_default_texture_size">4096</string>
+    <string name="pref_key_texture_count">pref_key_texture_count</string>
+    <string name="pref_default_texture_count">1</string>
     <string name="pref_key_normal_k">pref_key_normal_k</string>
     <string name="pref_default_normal_k">18</string>
     <string name="pref_key_max_texture_distance">pref_key_max_texture_distance</string>
@@ -120,10 +138,14 @@
     <string name="pref_default_opt_color_radius">0.05</string>
     <string name="pref_key_opt_clean_white">pref_key_opt_clean_white</string>
     <string name="pref_default_opt_clean_white">true</string>
+    <string name="pref_key_opt_min_cluster_size">pref_key_opt_min_cluster_size</string>
+    <string name="pref_default_opt_min_cluster_size">0</string>
     <string name="pref_key_gain_max_radius">pref_key_gain_max_radius</string>
     <string name="pref_default_gain_max_radius">0.02</string>
     <string name="pref_key_cluster_ratio">pref_key_cluster_ratio</string>
     <string name="pref_default_cluster_ratio">0.05</string>
+    <string name="pref_key_notification_sound">pref_key_notification_sound</string>
+    <string name="pref_default_notification_sound">true</string>
     <!-- Preference keys: END -->
 
     <string name="pref_title_rendering">Rendering</string>
@@ -302,9 +324,11 @@
     <string name="pref_title_smoothing">Smoothing</string>
     <string name="pref_summary_smoothing">Smooth the point clouds.</string>
     <string name="pref_title_fisheye">Fish Eye Camera</string>
-    <string name="pref_summary_fisheye">Use fish eye camera instead of the color camera. Cannot be used on Yellowstone tablet.</string>
+    <string name="pref_summary_fisheye">Use fish eye camera instead of the color camera. May not work on some devices.</string>
     <string name="pref_title_update_rate">Update Rate</string>
     <string name="pref_summary_update_rate">Rate at which a new node is added to map.</string>
+    <string name="pref_title_max_speed">Maximum Motion Speed</string>
+    <string name="pref_summary_max_speed">Images taken when the camera is moving too fast are ignored to avoid blurry textures.</string>
     <string name="pref_title_time_thr">Time Limit</string>
     <string name="pref_summary_time_thr">Maximum time allowed for map updates. If time to add a new node is above this theshold, some old parts of the map are temporarly forgotten to reduce time of next updates.</string>
     <string name="pref_title_mem_thr">Memory Limit</string>
@@ -316,7 +340,7 @@
     <string name="pref_title_min_inliers">Min Inliers</string>
     <string name="pref_summary_min_inliers">Minimum visual inliers to accept a loop closure.</string>
     <string name="pref_title_opt_error">Max Optimization Error</string>
-    <string name="pref_summary_opt_error">Reject any loop closures causing error corrections in the map higher than this threshold.</string>
+    <string name="pref_summary_opt_error">Reject any loop closures causing error corrections in the map higher than this factor of the link\'s variance.</string>
     <string name="pref_title_features_voc">Max Features Extracted (Vocabulary)</string>
     <string name="pref_summary_features_voc">Extracting more features per image would result in better loop closure hypotheses but more processing time is required.</string>
     <string name="pref_title_features">Max Features Extracted (Loop Closure)</string>
@@ -327,10 +351,18 @@
     <string name="pref_summary_optimizer">Graph optimization approach.</string>
     <string name="pref_title_optimize_end">Optimization from Graph End</string>
     <string name="pref_summary_optimize_end">The map\'s graph is optimized from the last node. The map is moved when a loop closure happens instead of jumping the current pose back to localized area. </string>
+    <string name="pref_title_marker_detection">ArUco Marker Detection</string>
+    <string name="pref_summary_marker_detection">ArUco markers can be detected for localization and graph optimization.</string>
+    <string name="pref_title_marker_detection_depth_error">Marker Depth Error Estimation</string>
+    <string name="pref_summary_marker_detection_depth_error">Size of markers are automatically initialized on the first marker seen. All markers should have the same size. This value is the maximum depth error to do the initialization to get accurate size of the tag. The lower it is, the more perpendicular the camera should be from the marker to do initialization, but size estimated would be more accurate.</string>
     <string name="pref_title_keep_all_db">Save All Frames in Database</string>
     <string name="pref_summary_keep_all_db">Discarded frames while not moving are still saved in database. Useful to replay exactly the scanning on RTAB-Map Desktop.</string>
     <string name="pref_title_raw_scan_saved">Save Raw Scan</string>
     <string name="pref_summary_raw_scan_saved">Save raw point clouds in database.</string>
+    <string name="pref_title_gps_saved">Save GPS</string>
+    <string name="pref_summary_gps_saved">Save GPS to database.</string>
+    <string name="pref_title_env_sensors_saved">Save Environmental Sensors</string>
+    <string name="pref_summary_env_sensors_saved">Save Wifi strength, temperature, air pressure, light intensity and relative humidity to database.</string>
     <string name="pref_title_db_in_memory">Database In Memory</string>
     <string name="pref_summary_db_in_memory">The database is kept in RAM for fast access. Set to false to reduce RAM used at the cost of slower access. This parameter is applied on reset or when a database is opened.</string>
 
@@ -351,6 +383,20 @@
         <item>"2"</item>
         <item>"1"</item>
         <item>"0.5"</item>
+    </string-array>
+    <string-array name="pref_max_speed_keys">
+        <item>"No Limit"</item>
+        <item>"High"</item>
+        <item>"Medium"</item>
+        <item>"Low"</item>
+        <item>"Very Low"</item>
+    </string-array>
+    <string-array name="pref_max_speed_values">
+        <item>"0"</item>
+        <item>"0.4"</item>
+        <item>"0.3"</item>
+        <item>"0.2"</item>
+        <item>"0.1"</item>
     </string-array>
     <string-array name="pref_time_thr_keys">
         <item>"No Limit"</item>
@@ -461,25 +507,29 @@
         <item>"10"</item>
     </string-array>
     <string-array name="pref_opt_error_keys">
-        <item>"1.0 m"</item>
-        <item>"0.5 m"</item>
-        <item>"0.35 m"</item>
-        <item>"0.2 m"</item>
-        <item>"0.1 m"</item>
-        <item>"0.05 m"</item>
-        <item>"0.025 m"</item>
-        <item>"0.01 m"</item>
+        <item>"10x"</item>
+        <item>"9x"</item>
+        <item>"8x"</item>
+        <item>"7x"</item>
+        <item>"6x"</item>
+        <item>"5x"</item>
+        <item>"4x"</item>
+        <item>"3x"</item>
+        <item>"2x"</item>
+        <item>"1x"</item>
         <item>"Disabled"</item>
     </string-array>
     <string-array name="pref_opt_error_values">
-        <item>"1.0"</item>
-        <item>"0.5"</item>
-        <item>"0.35"</item>
-        <item>"0.2"</item>
-        <item>"0.1"</item>
-        <item>"0.05"</item>
-        <item>"0.025"</item>
-        <item>"0.01"</item>
+        <item>"10"</item>
+        <item>"9"</item>
+        <item>"8"</item>
+        <item>"7"</item>
+        <item>"6"</item>
+        <item>"5"</item>
+        <item>"4"</item>
+        <item>"3"</item>
+        <item>"2"</item>
+        <item>"1"</item>
         <item>"0"</item>
     </string-array>
     <string-array name="pref_features_voc_keys">
@@ -554,6 +604,91 @@
         <item>"1"</item>
         <item>"0"</item>
     </string-array>
+    <string-array name="pref_marker_detection_keys">
+        <item>"Disabled"</item>
+        <item>"4X4_50"</item>
+        <item>"4X4_100"</item>
+        <item>"4X4_250"</item>
+        <item>"4X4_1000"</item>
+        <item>"5X5_50"</item>
+        <item>"5X5_100"</item>
+        <item>"5X5_250"</item>
+        <item>"5X5_1000"</item>
+        <item>"6X6_50"</item>
+        <item>"6X6_100"</item>
+        <item>"6X6_250"</item>
+        <item>"6X6_1000"</item>
+        <item>"7X7_50"</item>
+        <item>"7X7_100"</item>
+        <item>"7X7_250"</item>
+        <item>"7X7_1000"</item>
+        <item>"ARUCO_ORIGINAL"</item>
+        <item>"APRILTAG_16h5"</item>
+        <item>"APRILTAG_25h9"</item>
+        <item>"APRILTAG_36h10"</item>
+        <item>"APRILTAG_36h11"</item>
+    </string-array>
+    <string-array name="pref_marker_detection_values">
+        <item>"-1"</item>
+        <item>"0"</item>
+        <item>"1"</item>
+        <item>"2"</item>
+        <item>"3"</item>
+        <item>"4"</item>
+        <item>"5"</item>
+        <item>"6"</item>
+        <item>"7"</item>
+        <item>"8"</item>
+        <item>"9"</item>
+        <item>"10"</item>
+        <item>"11"</item>
+        <item>"12"</item>
+        <item>"13"</item>
+        <item>"14"</item>
+        <item>"15"</item>
+        <item>"16"</item>
+        <item>"17"</item>
+        <item>"18"</item>
+        <item>"19"</item>
+        <item>"20"</item>
+    </string-array>
+    
+    <string-array name="pref_marker_detection_depth_error_keys">
+        <item>"1 cm"</item>
+        <item>"2 cm"</item>
+        <item>"3 cm"</item>
+        <item>"4 cm"</item>
+        <item>"5 cm"</item>
+        <item>"6 cm"</item>
+        <item>"7 cm"</item>
+        <item>"8 cm"</item>
+        <item>"9 cm"</item>
+        <item>"10 cm"</item>
+        <item>"15 cm"</item>
+        <item>"20 cm"</item>
+        <item>"30 cm"</item>
+        <item>"40 cm"</item>
+        <item>"50 cm"</item>
+        <item>"100 cm"</item>
+    </string-array>
+    <string-array name="pref_marker_detection_depth_error_values">
+        <item>"0.01"</item>
+        <item>"0.02"</item>
+        <item>"0.03"</item>
+        <item>"0.04"</item>
+        <item>"0.05"</item>
+        <item>"0.06"</item>
+        <item>"0.07"</item>
+        <item>"0.08"</item>
+        <item>"0.09"</item>
+        <item>"0.1"</item>
+        <item>"0.15"</item>
+        <item>"0.20"</item>
+        <item>"0.30"</item>
+        <item>"0.40"</item>
+        <item>"0.50"</item>
+        <item>"1"</item>
+    </string-array>
 
     <string name="pref_title_export_sub">Exporting&#8230;</string>
     <string name="pref_title_export">Exporting</string>
@@ -562,6 +697,8 @@
     <string name="pref_summary_cloud_voxel">If you don\'t need a very precise point cloud, you can set this to reduce the output point cloud size. This is also used for optimized mesh.</string>
     <string name="pref_title_texture_size">Texture Size</string>
     <string name="pref_summary_texture_size">If the map is large, you may want to increase this to maximize the texture resolution.</string>
+    <string name="pref_title_texture_count">Maximum Output Textures</string>
+    <string name="pref_summary_texture_count">Note that all textures are still merged into one for visualization, but exported in multiple files.</string>
     <string name="pref_title_normal_k">Normal K</string>
     <string name="pref_summary_normal_k">K-nearest neighbors used for normal computation when a mesh is created.</string>
     <string name="pref_title_max_texture_distance">Max Texture Distance</string>
@@ -603,6 +740,26 @@
         <item>"2048"</item>
         <item>"1024"</item>
     </string-array>
+    <string-array name="pref_texture_count_keys">
+        <item>"8"</item>
+        <item>"7"</item>
+        <item>"6"</item>
+        <item>"5"</item>
+        <item>"4"</item>
+        <item>"3"</item>
+        <item>"2"</item>
+        <item>"1"</item>
+    </string-array>
+    <string-array name="pref_texture_count_values">
+        <item>"8"</item>
+        <item>"7"</item>
+        <item>"6"</item>
+        <item>"5"</item>
+        <item>"4"</item>
+        <item>"3"</item>
+        <item>"2"</item>
+        <item>"1"</item>
+    </string-array>
     <string-array name="pref_normal_k_values">
         <item>"30"</item>
         <item>"24"</item>
@@ -631,22 +788,22 @@
         <item>"2"</item>
     </string-array>
     <string-array name="pref_min_texture_cluster_size_keys">
-        <item>"Disabled"</item>
         <item>"1000"</item>
         <item>"500"</item>
         <item>"200"</item>
         <item>"100"</item>
         <item>"50"</item>
         <item>"10"</item>
+        <item>"Disabled"</item>
     </string-array>
     <string-array name="pref_min_texture_cluster_size_values">
-        <item>"0"</item>
         <item>"1000"</item>
         <item>"500"</item>
         <item>"200"</item>
         <item>"100"</item>
         <item>"50"</item>
         <item>"10"</item>
+        <item>"0"</item>
     </string-array>
     
     <string name="pref_title_optimized">Optimized</string>
@@ -658,7 +815,9 @@
     <string name="pref_summary_opt_color_radius">Radius used to transfer nearest color from the point cloud to reconstructed mesh. When exporting with texture, if Clean Mesh is also enabled, this will limit the number of polygons textured in holes.</string>
     <string name="pref_title_opt_clean_white">Clean Mesh</string>
     <string name="pref_summary_opt_clean_white">Clean mesh from textureless or colorless reconstructed polygons.</string>
-
+	<string name="pref_summary_opt_min_cluster_size">This can be used to filter polygons before texturing.</string>
+    <string name="pref_title_opt_min_cluster_size">Polygon Filtering</string>
+    
     <string-array name="pref_opt_depth_keys">
         <item>"Auto"</item>
         <item>"12"</item>
@@ -707,12 +866,22 @@
         <item>"0.01"</item>
         <item>"-1"</item>
     </string-array>
+    <string-array name="pref_opt_min_cluster_size_keys">
+        <item>"Only biggest cluster kept"</item>
+        <item>"Keep all polygons"</item>
+    </string-array>
+    <string-array name="pref_opt_min_cluster_size_values">
+        <item>"-1"</item>
+        <item>"0"</item>
+    </string-array>
 
     <string name="pref_title_general">General</string>
     <string name="pref_title_gain_max_radius">Color Correction Radius</string>
     <string name="pref_summary_gain_max_radius">Radius used to find pixel correspondences for Adjust Colors optimization.</string>
     <string name="pref_title_cluster_ratio">Noise Filtering Ratio</string>
     <string name="pref_summary_cluster_ratio">Polygon clusters with size smaller than this ratio of the largest cluster are removed by the Noise Filtering optimization.</string>
+    <string name="pref_title_notification_sound">Notification Sound</string>
+    <string name="pref_summary_notification_sound">After saving database or preparing data to export, a notification sound is played.</string>
 
     <string-array name="pref_gain_max_radius_keys">
         <item>"0.3 m"</item>
@@ -763,6 +932,10 @@
         <item>"0.01"</item>
     </string-array>
 
+    <string name="pref_title_presets">Presets</string>
+    <string name="pref_title_open_button">Open</string>
+    <string name="pref_title_save_button">Save</string>
+    <string name="pref_title_remove_button">Remove</string>
     <string name="pref_title_reset_button">Restore All Default Settings</string>
     <string name="title_activity_sketchfab">SketchfabActivity</string>
     <string name="hello_world">Hello world!</string>

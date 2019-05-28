@@ -25,8 +25,8 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef PREFERENCESDIALOG_H_
-#define PREFERENCESDIALOG_H_
+#ifndef RTABMAP_PREFERENCESDIALOG_H_
+#define RTABMAP_PREFERENCESDIALOG_H_
 
 #include "rtabmap/gui/RtabmapGuiExp.h" // DLL export/import defines
 
@@ -91,6 +91,8 @@ public:
 		kSrcFreenect2      = 5,
 		kSrcRealSense      = 6,
 		kSrcRGBDImages     = 7,
+		kSrcK4W2           = 8,
+		kSrcRealSense2     = 9,
 
 		kSrcStereo         = 100,
 		kSrcDC1394         = 100,
@@ -99,6 +101,7 @@ public:
 		kSrcStereoVideo    = 103,
 		kSrcStereoZed      = 104,
 		kSrcStereoUsb      = 105,
+		kSrcStereoTara 	   = 106,
 
 		kSrcRGB            = 200,
 		kSrcUsbDevice      = 200,
@@ -116,6 +119,7 @@ public:
 	virtual QString getTmpIniFilePath() const;
 	void init();
 	void setCurrentPanelToSource();
+	virtual QString getDefaultWorkingDirectory() const;
 
 	// save stuff
 	void saveSettings();
@@ -149,46 +153,57 @@ public:
 	bool isCacheSavedInFigures() const;
 	bool notifyWhenNewGlobalPathIsReceived() const;
 	int getOdomQualityWarnThr() const;
+	bool isOdomOnlyInliersShown() const;
 	bool isPosteriorGraphView() const;
+	bool isWordsCountGraphView() const;
+	bool isLocalizationsCountGraphView() const;
 	int getOdomRegistrationApproach() const;
 	bool isOdomDisabled() const;
 	bool isGroundTruthAligned() const;
 
 	bool isGraphsShown() const;
-	bool isFrustumsShown() const;
 	bool isLabelsShown() const;
+	bool isLandmarksShown() const;
+	double landmarkVisSize() const;
+	bool isMarkerDetection() const;
+	double getMarkerLength() const;
 	double getVoxel() const;
 	double getNoiseRadius() const;
 	int getNoiseMinNeighbors() const;
 	double getCeilingFilteringHeight() const;
 	double getFloorFilteringHeight() const;
 	int getNormalKSearch() const;
+	double getNormalRadiusSearch() const;
 	double getScanCeilingFilteringHeight() const;
 	double getScanFloorFilteringHeight() const;
 	int getScanNormalKSearch() const;
+	double getScanNormalRadiusSearch() const;
 	bool isCloudsShown(int index) const;      // 0=map, 1=odom
 	bool isOctomapUpdated() const;
 	bool isOctomapShown() const;
-	bool isOctomapCubeRendering() const;
+	int getOctomapRenderingType() const;
 	bool isOctomap2dGrid() const;
 	int getOctomapTreeDepth() const;
-	bool isOctomapFullUpdate() const;
-	double getOctomapOccupancyThr() const;
 	int getOctomapPointSize() const;
 	int getCloudDecimation(int index) const;   // 0=map, 1=odom
 	double getCloudMaxDepth(int index) const;  // 0=map, 1=odom
 	double getCloudMinDepth(int index) const;  // 0=map, 1=odom
 	std::vector<float> getCloudRoiRatios(int index) const; // 0=map, 1=odom
+	int getCloudColorScheme(int index) const;   // 0=map, 1=odom
 	double getCloudOpacity(int index) const;   // 0=map, 1=odom
 	int getCloudPointSize(int index) const;    // 0=map, 1=odom
 
 	bool isScansShown(int index) const;       // 0=map, 1=odom
 	int getDownsamplingStepScan(int index) const; // 0=map, 1=odom
+	double getScanMaxRange(int index) const; // 0=map, 1=odom
+	double getScanMinRange(int index) const; // 0=map, 1=odom
 	double getCloudVoxelSizeScan(int index) const; // 0=map, 1=odom
+	int getScanColorScheme(int index) const;    // 0=map, 1=odom
 	double getScanOpacity(int index) const;    // 0=map, 1=odom
 	int getScanPointSize(int index) const;     // 0=map, 1=odom
 
 	bool isFeaturesShown(int index) const;     // 0=map, 1=odom
+	bool isFrustumsShown(int index) const;     // 0=map, 1=odom
 	int getFeaturesPointSize(int index) const; // 0=map, 1=odom
 
 	bool isCloudFiltering() const;
@@ -200,7 +215,6 @@ public:
 	double getSubtractFilteringAngle() const;
 
 	bool getGridMapShown() const;
-	double getGridMapResolution() const;;
 	bool isGridMapFrom3DCloud() const;
 	bool projMapFrame() const;
 	double projMaxGroundAngle() const;
@@ -235,13 +249,20 @@ public:
 	double getBilateralSigmaR() const;
 	int getSourceImageDecimation() const;
 	bool isSourceStereoDepthGenerated() const;
+	bool isSourceStereoExposureCompensation() const;
 	bool isSourceScanFromDepth() const;
-	int getSourceScanFromDepthDecimation() const;
-	double getSourceScanFromDepthMaxDepth() const;
+	int getSourceScanDownsampleStep() const;
+	double getSourceScanRangeMin() const;
+	double getSourceScanRangeMax() const;
 	double getSourceScanVoxelSize() const;
 	int getSourceScanNormalsK() const;
+	double getSourceScanNormalsRadius() const;
+	bool isSourceScanForceGroundNormalsUp() const;
 	Transform getSourceLocalTransform() const;    //Openni group
 	Transform getLaserLocalTransform() const; // directory images
+	Transform getIMULocalTransform() const; // directory images
+	QString getIMUPath() const;
+	int getIMURate() const;
 	Camera * createCamera(bool useRawImages = false, bool useColor = true); // return camera should be deleted if not null
 
 	int getIgnoredDCComponents() const;
@@ -253,6 +274,8 @@ public:
 	float getDetectionRate() const;
 	bool isSLAMMode() const;
 	bool isRGBDMode() const;
+	int getKpMaxFeatures() const;
+	bool isPriorIgnored() const;
 
 	//specific
 	bool isStatisticsPublished() const;
@@ -261,17 +284,16 @@ public:
 	double getSimThr() const;
 	int getOdomStrategy() const;
 	int getOdomBufferSize() const;
-	bool getRegVarianceFromInliersCount() const;
 	QString getCameraInfoDir() const; // "workinfDir/camera_info"
 
 	//
 	void setMonitoringState(bool monitoringState) {_monitoringState = monitoringState;}
 
-signals:
+Q_SIGNALS:
 	void settingsChanged(PreferencesDialog::PANEL_FLAGS);
 	void settingsChanged(rtabmap::ParametersMap);
 
-public slots:
+public Q_SLOTS:
 	void setInputRate(double value);
 	void setDetectionRate(double value);
 	void setTimeLimit(float value);
@@ -280,7 +302,7 @@ public slots:
 	void calibrate();
 	void calibrateSimple();
 
-private slots:
+private Q_SLOTS:
 	void closeDialog ( QAbstractButton * button );
 	void resetApply ( QAbstractButton * button );
 	void resetSettings(int panelNumber);
@@ -300,9 +322,12 @@ private slots:
 	void updateKpROI();
 	void updateStereoDisparityVisibility();
 	void useOdomFeatures();
-	void useGridProjRayTracing();
 	void changeWorkingDirectory();
 	void changeDictionaryPath();
+	void changeOdometryORBSLAM2Vocabulary();
+	void changeOdometryOKVISConfigPath();
+	void changeOdometryVINSConfigPath();
+	void changeIcpPMConfigPath();
 	void readSettingsEnd();
 	void setupTreeView();
 	void updateBasicParameter();
@@ -314,6 +339,7 @@ private slots:
 	void selectSourceRGBDImagesPathRGB();
 	void selectSourceRGBDImagesPathDepth();
 	void selectSourceImagesPathScans();
+	void selectSourceImagesPathIMU();
 	void selectSourceImagesPathOdom();
 	void selectSourceImagesPathGt();
 	void selectSourceStereoImagesPathLeft();
@@ -386,14 +412,19 @@ private:
 	QVector<QDoubleSpinBox*> _3dRenderingMaxDepth;
 	QVector<QDoubleSpinBox*> _3dRenderingMinDepth;
 	QVector<QLineEdit*> _3dRenderingRoiRatios;
+	QVector<QSpinBox*> _3dRenderingColorScheme;
 	QVector<QDoubleSpinBox*> _3dRenderingOpacity;
 	QVector<QSpinBox*> _3dRenderingPtSize;
 	QVector<QCheckBox*> _3dRenderingShowScans;
 	QVector<QSpinBox*> _3dRenderingDownsamplingScan;
+	QVector<QDoubleSpinBox*> _3dRenderingMaxRange;
+	QVector<QDoubleSpinBox*> _3dRenderingMinRange;
 	QVector<QDoubleSpinBox*> _3dRenderingVoxelSizeScan;
+	QVector<QSpinBox*> _3dRenderingColorSchemeScan;
 	QVector<QDoubleSpinBox*> _3dRenderingOpacityScan;
 	QVector<QSpinBox*> _3dRenderingPtSizeScan;
 	QVector<QCheckBox*> _3dRenderingShowFeatures;
+	QVector<QCheckBox*> _3dRenderingShowFrustums;
 	QVector<QSpinBox*> _3dRenderingPtSizeFeatures;
 };
 

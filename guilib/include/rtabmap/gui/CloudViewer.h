@@ -25,13 +25,14 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef CLOUDVIEWER_H_
-#define CLOUDVIEWER_H_
+#ifndef RTABMAP_CLOUDVIEWER_H_
+#define RTABMAP_CLOUDVIEWER_H_
 
 #include "rtabmap/gui/RtabmapGuiExp.h" // DLL export/import defines
 
 #include "rtabmap/core/Transform.h"
 #include "rtabmap/core/StereoCameraModel.h"
+#include "rtabmap/gui/CloudViewerInteractorStyle.h"
 
 #include <QVTKWidget.h>
 #include <pcl/pcl_base.h>
@@ -48,8 +49,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <opencv2/opencv.hpp>
 #include <set>
 
-#include <pcl/visualization/mouse_event.h>
-#include <pcl/visualization/point_picking_event.h>
 #include <pcl/PCLPointCloud2.h>
 
 namespace pcl {
@@ -60,6 +59,8 @@ namespace pcl {
 
 class QMenu;
 class vtkProp;
+template <typename T> class vtkSmartPointer;
+class vtkOBBTree;
 
 namespace rtabmap {
 
@@ -70,7 +71,7 @@ class RTABMAPGUI_EXP CloudViewer : public QVTKWidget
 	Q_OBJECT
 
 public:
-	CloudViewer(QWidget * parent = 0);
+	CloudViewer(QWidget * parent = 0, CloudViewerInteractorStyle* style = CloudViewerInteractorStyle::New());
 	virtual ~CloudViewer();
 
 	void saveSettings(QSettings & settings, const QString & group = "") const;
@@ -85,7 +86,8 @@ public:
 			const pcl::PCLPointCloud2Ptr & binaryCloud,
 			const Transform & pose,
 			bool rgb,
-			bool haveNormals,
+			bool hasNormals,
+			bool hasIntensity,
 			const QColor & color = QColor());
 
 	bool addCloud(
@@ -97,6 +99,18 @@ public:
 	bool addCloud(
 			const std::string & id,
 			const pcl::PointCloud<pcl::PointXYZRGB>::Ptr & cloud,
+			const Transform & pose = Transform::getIdentity(),
+			const QColor & color = QColor());
+
+	bool addCloud(
+				const std::string & id,
+				const pcl::PointCloud<pcl::PointXYZINormal>::Ptr & cloud,
+				const Transform & pose = Transform::getIdentity(),
+				const QColor & color = QColor());
+
+	bool addCloud(
+			const std::string & id,
+			const pcl::PointCloud<pcl::PointXYZI>::Ptr & cloud,
 			const Transform & pose = Transform::getIdentity(),
 			const QColor & color = QColor());
 
@@ -142,7 +156,7 @@ public:
 			const cv::Mat & texture,
 			const Transform & pose = Transform::getIdentity());
 
-	bool addOctomap(const OctoMap * octomap, unsigned int treeDepth = 0);
+	bool addOctomap(const OctoMap * octomap, unsigned int treeDepth = 0, bool volumeRepresentation = true);
 	void removeOctomap();
 
 	// Only one texture per mesh is supported!
@@ -177,21 +191,68 @@ public:
 	void addOrUpdateCoordinate(
 			const std::string & id,
 			const Transform & transform,
-			double scale);
+			double scale,
+			bool foreground=false);
 	bool updateCoordinatePose(
 			const std::string & id,
 			const Transform & transform);
 	void removeCoordinate(const std::string & id);
-	void removeAllCoordinates();
+	void removeAllCoordinates(const std::string & prefix = "");
+	const std::set<std::string> & getAddedCoordinates() const {return _coordinates;}
 
 	void addOrUpdateLine(
 				const std::string & id,
 				const Transform & from,
 				const Transform & to,
 				const QColor & color,
-				bool arrow = false);
+				bool arrow = false,
+				bool foreground = false);
 	void removeLine(const std::string & id);
 	void removeAllLines();
+	const std::set<std::string> & getAddedLines() const {return _lines;}
+
+	void addOrUpdateSphere(
+				const std::string & id,
+				const Transform & pose,
+				float radius,
+				const QColor & color,
+				bool foreground = false);
+	void removeSphere(const std::string & id);
+	void removeAllSpheres();
+	const std::set<std::string> & getAddedSpheres() const {return _spheres;}
+
+	void addOrUpdateCube(
+				const std::string & id,
+				const Transform & pose, // center of the cube
+				float width,  // e.g., along x axis
+				float height, // e.g., along y axis
+				float depth,  // e.g., along z axis
+				const QColor & color,
+				bool wireframe = false,
+				bool foreground = false);
+	void removeCube(const std::string & id);
+	void removeAllCubes();
+	const std::set<std::string> & getAddedCubes() const {return _cubes;}
+
+	void addOrUpdateQuad(
+			const std::string & id,
+			const Transform & pose,
+			float width,
+			float height,
+			const QColor & color,
+			bool foreground = false);
+	void addOrUpdateQuad(
+			const std::string & id,
+			const Transform & pose,
+			float widthLeft,
+			float widthRight,
+			float heightBottom,
+			float heightTop,
+			const QColor & color,
+			bool foreground = false);
+	void removeQuad(const std::string & id);
+	void removeAllQuads();
+	const std::set<std::string> & getAddedQuads() const {return _quads;}
 
 	void addOrUpdateFrustum(
 			const std::string & id,
@@ -218,9 +279,11 @@ public:
 			const std::string & text,
 			const Transform & position,
 			double scale,
-			const QColor & color);
+			const QColor & color,
+			bool foreground = true);
 	void removeText(const std::string & id);
 	void removeAllTexts();
+	const std::set<std::string> & getAddedTexts() const {return _texts;}
 
 	bool isTrajectoryShown() const;
 	unsigned int getTrajectorySize() const;
@@ -245,12 +308,24 @@ public:
 	const QColor & getDefaultBackgroundColor() const;
 	const QColor & getBackgroundColor() const;
 	Transform getTargetPose() const;
+	std::string getIdByActor(vtkProp * actor) const;
+	QColor getColor(const std::string & id);
+	void setColor(const std::string & id, const QColor & color);
 
 	void setBackfaceCulling(bool enabled, bool frontfaceCulling);
+	void setPolygonPicking(bool enabled);
 	void setRenderingRate(double rate);
 	void setLighting(bool on);
 	void setShading(bool on);
 	void setEdgeVisibility(bool visible);
+	void setInteractorLayer(int layer);
+
+	bool isBackfaceCulling() const;
+	bool isFrontfaceCulling() const;
+	bool isPolygonPicking() const;
+	bool isLightingOn() const;
+	bool isShadingOn() const;
+	bool isEdgeVisible() const;
 	double getRenderingRate() const;
 
 	void getCameraPosition(
@@ -261,6 +336,7 @@ public:
 	bool isCameraTargetFollow() const;
 	bool isCameraFree() const;
 	bool isCameraLockZ() const;
+	bool isCameraOrtho() const;
 	bool isGridShown() const;
 	unsigned int getGridCellCount() const;
 	float getGridCellSize() const;
@@ -273,19 +349,29 @@ public:
 	void setCameraTargetFollow(bool enabled = true);
 	void setCameraFree();
 	void setCameraLockZ(bool enabled = true);
+	void setCameraOrtho(bool enabled = true);
 	void setGridShown(bool shown);
+	void setNormalsShown(bool shown);
 	void setGridCellCount(unsigned int count);
 	void setGridCellSize(float size);
+	bool isNormalsShown() const;
+	int getNormalsStep() const;
+	float getNormalsScale() const;
+	void setNormalsStep(int step);
+	void setNormalsScale(float scale);
+	void buildPickingLocator(bool enable);
+	const std::map<std::string, vtkSmartPointer<vtkOBBTree> > & getLocators() const {return _locators;}
 
-public slots:
+public Q_SLOTS:
 	void setDefaultBackgroundColor(const QColor & color);
 	void setBackgroundColor(const QColor & color);
 	void setCloudVisibility(const std::string & id, bool isVisible);
+	void setCloudColorIndex(const std::string & id, int index);
 	void setCloudOpacity(const std::string & id, double opacity = 1.0);
 	void setCloudPointSize(const std::string & id, int size);
 	virtual void clear();
 
-signals:
+Q_SIGNALS:
 	void configChanged();
 
 protected:
@@ -297,6 +383,7 @@ protected:
 	virtual void contextMenuEvent(QContextMenuEvent * event);
 	virtual void handleAction(QAction * event);
 	QMenu * menu() {return _menu;}
+	pcl::visualization::PCLVisualizer * visualizer() {return _visualizer;}
 
 private:
 	void createMenu();
@@ -309,6 +396,7 @@ private:
     QAction * _aFollowCamera;
     QAction * _aResetCamera;
     QAction * _aLockViewZ;
+    QAction * _aCameraOrtho;
     QAction * _aShowTrajectory;
     QAction * _aSetTrajectorySize;
     QAction * _aClearTrajectory;
@@ -318,17 +406,24 @@ private:
     QAction * _aShowGrid;
     QAction * _aSetGridCellCount;
     QAction * _aSetGridCellSize;
+    QAction * _aShowNormals;
+	QAction * _aSetNormalsStep;
+	QAction * _aSetNormalsScale;
     QAction * _aSetBackgroundColor;
     QAction * _aSetRenderingRate;
     QAction * _aSetLighting;
     QAction * _aSetFlatShading;
     QAction * _aSetEdgeVisibility;
     QAction * _aBackfaceCulling;
+    QAction * _aPolygonPicking;
     QMenu * _menu;
     std::set<std::string> _graphes;
     std::set<std::string> _coordinates;
     std::set<std::string> _texts;
     std::set<std::string> _lines;
+    std::set<std::string> _spheres;
+    std::set<std::string> _cubes;
+    std::set<std::string> _quads;
     QMap<std::string, Transform> _frustums;
     pcl::PointCloud<pcl::PointXYZ>::Ptr _trajectory;
     unsigned int _maxTrajectorySize;
@@ -336,6 +431,10 @@ private:
     QColor _frustumColor;
     unsigned int _gridCellCount;
     float _gridCellSize;
+    int _normalsStep;
+    float _normalsScale;
+    bool _buildLocator;
+    std::map<std::string, vtkSmartPointer<vtkOBBTree> > _locators;
     cv::Vec3d _lastCameraOrientation;
     cv::Vec3d _lastCameraPose;
     QMap<std::string, Transform> _addedClouds; // include cloud, scan, meshes

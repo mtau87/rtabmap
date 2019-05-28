@@ -57,6 +57,8 @@ class Scene {
 
   // Setup GL view port.
   void SetupViewPort(int w, int h);
+  int getViewPortWidth() const {return screenWidth_;}
+  int getViewPortHeight() const {return screenHeight_;}
 
   void setScreenRotation(TangoSupportRotation colorCameraToDisplayRotation) {color_camera_to_display_rotation_ = colorCameraToDisplayRotation;}
 
@@ -100,6 +102,12 @@ class Scene {
   void setGridVisible(bool visible);
   void setTraceVisible(bool visible);
 
+  void addMarker(int id, const rtabmap::Transform & pose);
+  void setMarkerPose(int id, const rtabmap::Transform & pose);
+  bool hasMarker(int id) const;
+  void removeMarker(int id);
+  std::set<int> getAddedMarkers() const;
+
   void addCloud(
   		  int id,
   		  const pcl::PointCloud<pcl::PointXYZRGB>::Ptr & cloud,
@@ -108,7 +116,8 @@ class Scene {
   void addMesh(
   		int id,
   		const Mesh & mesh,
-  		const rtabmap::Transform & pose);
+  		const rtabmap::Transform & pose,
+		bool createWireframe = false);
 
   void setCloudPose(int id, const rtabmap::Transform & pose);
   void setCloudVisible(int id, bool visible);
@@ -124,8 +133,12 @@ class Scene {
   void setMapRendering(bool enabled) {mapRendering_ = enabled;}
   void setMeshRendering(bool enabled, bool withTexture) {meshRendering_ = enabled; meshRenderingTexture_ = withTexture;}
   void setPointSize(float size) {pointSize_ = size;}
+  void setFOV(float angle);
+  void setOrthoCropFactor(float value);
+  void setGridRotation(float angleDeg);
   void setLighting(bool enabled) {lighting_ = enabled;}
   void setBackfaceCulling(bool enabled) {backfaceCulling_ = enabled;}
+  void setWireframe(bool enabled) {wireFrame_ = enabled;}
   void setBackgroundColor(float r, float g, float b) {r_=r; g_=g; b_=b;} // 0.0f <> 1.0f
   void setGridColor(float r, float g, float b);
 
@@ -160,6 +173,8 @@ class Scene {
   bool gridVisible_;
   bool traceVisible_;
 
+  std::map<int, tango_gl::Axis*> markers_;
+
   TangoSupportRotation color_camera_to_display_rotation_;
 
   std::map<int, PointCloudDrawable*> pointClouds_;
@@ -177,6 +192,7 @@ class Scene {
   bool boundingBoxRendering_;
   bool lighting_;
   bool backfaceCulling_;
+  bool wireFrame_;
   float r_;
   float g_;
   float b_;

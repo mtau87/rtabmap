@@ -99,6 +99,10 @@ public:
 	void removeWords(const std::vector<VisualWord*> & words); // caller must delete the words
 	void deleteUnusedWords();
 
+public:
+	static cv::Mat convertBinTo32F(const cv::Mat & descriptorsIn);
+	static cv::Mat convert32FToBin(const cv::Mat & descriptorsIn);
+
 protected:
 	int getNextId();
 
@@ -109,6 +113,7 @@ protected:
 private:
 	bool _incrementalDictionary;
 	bool _incrementalFlann;
+	float _rebalancingFactor;
 	float _nndrRatio;
 	std::string _dictionaryPath; // a pre-computed dictionary (.txt)
 	bool _newWordsComparedTogether;

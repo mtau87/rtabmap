@@ -71,6 +71,7 @@ public:
 			const SensorData & data,
 			Transform odomPose,
 			const cv::Mat & odomCovariance = cv::Mat::eye(6,6,CV_64FC1),
+			const std::vector<float> & odomVelocity = std::vector<float>(),
 			const std::map<std::string, float> & externalStats = std::map<std::string, float>());
 	// for convenience
 	bool process(
@@ -78,6 +79,7 @@ public:
 			Transform odomPose,
 			float odomLinearVariance,
 			float odomAngularVariance,
+			const std::vector<float> & odomVelocity = std::vector<float>(),
 			const std::map<std::string, float> & externalStats = std::map<std::string, float>());
 	// for convenience, loop closure detection only
 	bool process(
@@ -116,6 +118,7 @@ public:
 	const Statistics & getStatistics() const;
 	//bool getMetricData(int locationId, cv::Mat & rgb, cv::Mat & depth, float & depthConstant, Transform & pose, Transform & localTransform) const;
 	const std::map<int, Transform> & getLocalOptimizedPoses() const {return _optimizedPoses;}
+	const std::multimap<int, Link> & getLocalConstraints() const {return _constraints;}
 	Transform getPose(int locationId) const;
 	Transform getMapCorrection() const {return _mapCorrection;}
 	const Memory * getMemory() const {return _memory;}
@@ -126,6 +129,7 @@ public:
 	float getTimeThreshold() const {return _maxTimeAllowed;} // in ms
 	void setTimeThreshold(float maxTimeAllowed); // in ms
 
+	void setInitialPose(const Transform & initialPose);
 	int triggerNewMap();
 	bool labelLocation(int id, const std::string & label);
 	/**
@@ -149,7 +153,8 @@ public:
 	void parseParameters(const ParametersMap & parameters);
 	const ParametersMap & getParameters() const {return _parameters;}
 	void setWorkingDirectory(std::string path);
-	void rejectLoopClosure(int oldId, int newId);
+	void rejectLastLoopClosure();
+	void deleteLastLocation();
 	void setOptimizedPoses(const std::map<int, Transform> & poses);
 	void get3DMap(std::map<int, Signature> & signatures,
 			std::map<int, Transform> & poses,
@@ -161,13 +166,20 @@ public:
 			bool optimized,
 			bool global,
 			std::map<int, Signature> * signatures = 0);
-	int detectMoreLoopClosures(float clusterRadius = 0.5f, float clusterAngle = M_PI/6.0f, int iterations = 1, const ProgressState * state = 0);
+	int detectMoreLoopClosures(
+			float clusterRadius = 0.5f,
+			float clusterAngle = M_PI/6.0f,
+			int iterations = 1,
+			bool intraSession = true,
+			bool interSession = true,
+			const ProgressState * state = 0);
 	int refineLinks();
+	cv::Mat getInformation(const cv::Mat & covariance) const;
 
 	int getPathStatus() const {return _pathStatus;} // -1=failed 0=idle/executing 1=success
 	void clearPath(int status); // -1=failed 0=idle/executing 1=success
 	bool computePath(int targetNode, bool global);
-	bool computePath(const Transform & targetPose); // only in current optimized map
+	bool computePath(const Transform & targetPose, float tolerance = -1.0f); // only in current optimized map, tolerance (m) < 0 means RGBD/LocalRadius, 0 means infinite
 	const std::vector<std::pair<int, Transform> > & getPath() const {return _path;}
 	std::vector<std::pair<int, Transform> > getPathNextPoses() const;
 	std::vector<int> getPathNextNodes() const;
@@ -177,7 +189,7 @@ public:
 	const Transform & getPathTransformToGoal() const {return _pathTransformToGoal;}
 
 	std::map<int, Transform> getForwardWMPoses(int fromId, int maxNearestNeighbors, float radius, int maxDiffID) const;
-	std::map<int, std::map<int, Transform> > getPaths(std::map<int, Transform> poses, const Transform & target, int maxGraphDepth = 0) const;
+	std::map<int, std::map<int, Transform> > getPaths(const std::map<int, Transform> & poses, const Transform & target, int maxGraphDepth = 0) const;
 	void adjustLikelihood(std::map<int, float> & likelihood) const;
 	std::pair<int, float> selectHypothesis(const std::map<int, float> & posterior,
 											const std::map<int, float> & likelihood) const;
@@ -186,6 +198,7 @@ private:
 	void optimizeCurrentMap(int id,
 			bool lookInDatabase,
 			std::map<int, Transform> & optimizedPoses,
+			cv::Mat & covariance,
 			std::multimap<int, Link> * constraints = 0,
 			double * error = 0,
 			int * iterationsDone = 0) const;
@@ -194,6 +207,7 @@ private:
 			const std::set<int> & ids,
 			const std::map<int, Transform> & guessPoses,
 			bool lookInDatabase,
+			cv::Mat & covariance,
 			std::multimap<int, Link> * constraints = 0,
 			double * error = 0,
 			int * iterationsDone = 0) const;
@@ -209,10 +223,14 @@ private:
 	bool _publishLastSignatureData;
 	bool _publishPdf;
 	bool _publishLikelihood;
+	bool _publishRAMUsage;
+	bool _computeRMSE;
+	bool _saveWMState;
 	float _maxTimeAllowed; // in ms
 	unsigned int _maxMemoryAllowed; // signatures count in WM
 	float _loopThr;
 	float _loopRatio;
+	bool _verifyLoopClosureHypothesis;
 	unsigned int _maxRetrieved;
 	unsigned int _maxLocalRetrieved;
 	bool _rawDataKept;
@@ -222,6 +240,8 @@ private:
 	bool _rgbdSlamMode;
 	float _rgbdLinearUpdate;
 	float _rgbdAngularUpdate;
+	float _rgbdLinearSpeedUpdate;
+	float _rgbdAngularSpeedUpdate;
 	float _newMapOdomChangeDistance;
 	bool _neighborLinkRefining;
 	bool _proximityByTime;
@@ -237,13 +257,18 @@ private:
 	float _proximityAngle;
 	std::string _databasePath;
 	bool _optimizeFromGraphEnd;
-	float _optimizationMaxLinearError;
+	float _optimizationMaxError;
 	bool _startNewMapOnLoopClosure;
+	bool _startNewMapOnGoodSignature;
 	float _goalReachedRadius; // meters
 	bool _goalsSavedInUserData;
 	int _pathStuckIterations;
 	float _pathLinearVelocity;
 	float _pathAngularVelocity;
+	bool _savedLocalizationIgnored;
+	bool _loopCovLimited;
+	bool _loopGPS;
+	int _maxOdomCacheSize;
 
 	std::pair<int, float> _loopClosureHypothesis;
 	std::pair<int, float> _highestHypothesis;
@@ -275,6 +300,10 @@ private:
 	Transform _mapCorrectionBackup; // used in localization mode when odom is lost
 	Transform _lastLocalizationPose; // Corrected odometry pose. In mapping mode, this corresponds to last pose return by getLocalOptimizedPoses().
 	int _lastLocalizationNodeId; // for localization mode
+	std::map<int, std::pair<cv::Point3d, Transform> > _gpsGeocentricCache;
+	bool _currentSessionHasGPS;
+	std::map<int, Transform> _odomCachePoses;       // used in localization mode to reject loop closures
+	std::multimap<int, Link> _odomCacheConstraints; // used in localization mode to reject loop closures
 
 	// Planning stuff
 	int _pathStatus;
@@ -288,6 +317,5 @@ private:
 
 };
 
-#endif /* RTABMAP_H_ */
-
 } // namespace rtabmap
+#endif /* RTABMAP_H_ */

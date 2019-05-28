@@ -49,10 +49,7 @@ KeypointItem::KeypointItem(int id, const cv::KeyPoint & kpt, float depth, const 
 
 KeypointItem::~KeypointItem()
 {
-	if(_placeHolder)
-	{
-		delete _placeHolder;
-	}
+	delete _placeHolder;
 }
 
 void KeypointItem::setColor(const QColor & color)
@@ -67,9 +64,20 @@ void KeypointItem::showDescription()
 	{
 		_placeHolder = new QGraphicsRectItem (this);
 		_placeHolder->setVisible(false);
-		_placeHolder->setBrush(QBrush(QColor ( 0, 0, 0, 170 ))); // Black transparent background
+		if(qGray(pen().color().rgb()) > 255/2)
+		{
+			_placeHolder->setBrush(QBrush(QColor ( 0,0,0, 170 )));
+		}
+		else
+		{
+			_placeHolder->setBrush(QBrush(QColor ( 255, 255, 255, 170 )));
+		}
 		QGraphicsTextItem * text = new QGraphicsTextItem(_placeHolder);
 		text->setDefaultTextColor(this->pen().color().rgb());
+		// Make octave compatible with SIFT packed octave (https://github.com/opencv/opencv/issues/4554)
+		int octave = _kpt.octave & 255;
+		octave = octave < 128 ? octave : (-128 | octave);
+		float scale = octave >= 0 ? 1.f/(1 << octave) : (float)(1 << -octave);
 		if(_depth <= 0)
 		{
 			text->setPlainText(QString( "Id = %1\n"
@@ -78,7 +86,8 @@ void KeypointItem::showDescription()
 					"X = %5\n"
 					"Y = %6\n"
 					"Size = %7\n"
-					"Octave = %8").arg(_id).arg(_kpt.angle).arg(_kpt.response).arg(_kpt.pt.x).arg(_kpt.pt.y).arg(_kpt.size).arg(_kpt.octave));
+					"Octave = %8\n"
+					"Scale = %9").arg(_id).arg(_kpt.angle).arg(_kpt.response).arg(_kpt.pt.x).arg(_kpt.pt.y).arg(_kpt.size).arg(octave).arg(scale));
 		}
 		else
 		{
@@ -89,7 +98,8 @@ void KeypointItem::showDescription()
 					"Y = %6\n"
 					"Size = %7\n"
 					"Octave = %8\n"
-					"Depth = %9 m").arg(_id).arg(_kpt.angle).arg(_kpt.response).arg(_kpt.pt.x).arg(_kpt.pt.y).arg(_kpt.size).arg(_kpt.octave).arg(_depth));
+					"Scale = %9\n"
+					"Depth = %10 m").arg(_id).arg(_kpt.angle).arg(_kpt.response).arg(_kpt.pt.x).arg(_kpt.pt.y).arg(_kpt.size).arg(octave).arg(scale).arg(_depth));
 		}
 		_placeHolder->setRect(text->boundingRect());
 	}

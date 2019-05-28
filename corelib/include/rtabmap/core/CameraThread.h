@@ -60,6 +60,7 @@ public:
 	virtual ~CameraThread();
 
 	void setMirroringEnabled(bool enabled) {_mirroring = enabled;}
+	void setStereoExposureCompensation(bool enabled) {_stereoExposureCompensation = enabled;}
 	void setColorOnly(bool colorOnly) {_colorOnly = colorOnly;}
 	void setImageDecimation(int decimation) {_imageDecimation = decimation;}
 	void setStereoToDepth(bool enabled) {_stereoToDepth = enabled;}
@@ -68,18 +69,24 @@ public:
 	void enableBilateralFiltering(float sigmaS, float sigmaR);
 	void disableBilateralFiltering() {_bilateralFiltering = false;}
 
-	void setScanFromDepth(
-			bool enabled,
-			int decimation=4,
-			float maxDepth=4.0f,
+	void setScanParameters(
+			bool fromDepth,
+			int downsampleStep=1, // decimation of the depth image in case the scan is from depth image
+			float rangeMin=0.0f,
+			float rangeMax=0.0f,
 			float voxelSize = 0.0f,
-			int normalsK = 0)
+			int normalsK = 0,
+			int normalsRadius = 0.0f,
+			bool forceGroundNormalsUp = false)
 	{
-		_scanFromDepth = enabled;
-		_scanDecimation=decimation;
-		_scanMaxDepth = maxDepth;
+		_scanFromDepth = fromDepth;
+		_scanDownsampleStep=downsampleStep;
+		_scanRangeMin = rangeMin;
+		_scanRangeMax = rangeMax;
 		_scanVoxelSize = voxelSize;
 		_scanNormalsK = normalsK;
+		_scanNormalsRadius = normalsRadius;
+		_scanForceGroundNormalsUp = forceGroundNormalsUp;
 	}
 
 	void postUpdate(SensorData * data, CameraInfo * info = 0) const;
@@ -98,15 +105,18 @@ private:
 private:
 	Camera * _camera;
 	bool _mirroring;
+	bool _stereoExposureCompensation;
 	bool _colorOnly;
 	int _imageDecimation;
 	bool _stereoToDepth;
 	bool _scanFromDepth;
-	int _scanDecimation;
-	float _scanMaxDepth;
-	float _scanMinDepth;
+	int _scanDownsampleStep;
+	float _scanRangeMin;
+	float _scanRangeMax;
 	float _scanVoxelSize;
 	int _scanNormalsK;
+	float _scanNormalsRadius;
+	bool _scanForceGroundNormalsUp;
 	StereoDense * _stereoDense;
 	clams::DiscreteDepthDistortionModel * _distortionModel;
 	bool _bilateralFiltering;

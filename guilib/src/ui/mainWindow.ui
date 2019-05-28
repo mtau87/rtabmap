@@ -40,6 +40,7 @@
      </property>
      <addaction name="actionRaw_format_txt"/>
      <addaction name="actionRGBD_SLAM_format_txt"/>
+     <addaction name="actionRGBD_SLAM_motion_capture_format_txt"/>
      <addaction name="actionKITTI_format_txt"/>
      <addaction name="actionTORO_graph"/>
      <addaction name="actionG2o_g2o"/>
@@ -50,7 +51,6 @@
     <addaction name="actionSave_GUI_config"/>
     <addaction name="separator"/>
     <addaction name="actionSave_point_cloud"/>
-    <addaction name="actionExport_2D_scans_ply_pcd"/>
     <addaction name="actionExport_2D_Grid_map_bmp_png"/>
     <addaction name="actionExport_octomap"/>
     <addaction name="menuExport_poses"/>
@@ -83,7 +83,6 @@
     <addaction name="actionClear_cache"/>
     <addaction name="separator"/>
     <addaction name="actionView_high_res_point_cloud"/>
-    <addaction name="actionView_scans"/>
     <addaction name="separator"/>
     <addaction name="actionDelete_memory"/>
     <addaction name="separator"/>
@@ -167,6 +166,7 @@
          <normaloff>:/images/kinect_xbox_one.png</normaloff>:/images/kinect_xbox_one.png</iconset>
        </property>
        <addaction name="actionFreenect2"/>
+       <addaction name="actionKinect_for_Windows_SDK_v2"/>
       </widget>
       <widget class="QMenu" name="menuRealSense_R200">
        <property name="title">
@@ -174,7 +174,7 @@
        </property>
        <property name="icon">
         <iconset resource="../GuiLib.qrc">
-         <normaloff>:/images/r200.png</normaloff>:/images/r200.png</iconset>
+         <normaloff>:/images/d435.png</normaloff>:/images/d435.png</iconset>
        </property>
        <addaction name="actionRealSense_R200"/>
       </widget>
@@ -188,12 +188,34 @@
        </property>
        <addaction name="actionRealSense_ZR300"/>
       </widget>
+      <widget class="QMenu" name="menuRealSense_D435">
+       <property name="title">
+        <string>RealSense D435</string>
+       </property>
+       <property name="icon">
+        <iconset resource="../GuiLib.qrc">
+         <normaloff>:/images/d435.png</normaloff>:/images/d435.png</iconset>
+       </property>
+       <addaction name="actionRealSense2_D435"/>
+      </widget>
+      <widget class="QMenu" name="menuRealSense_D415">
+       <property name="title">
+        <string>RealSense D415</string>
+       </property>
+       <property name="icon">
+        <iconset resource="../GuiLib.qrc">
+         <normaloff>:/images/d415.png</normaloff>:/images/d415.png</iconset>
+       </property>
+       <addaction name="actionRealSense2_D415"/>
+      </widget>
       <addaction name="menuKinect_for_Xbox_360"/>
       <addaction name="menuXtion_PRO_LIVE"/>
       <addaction name="menuSense_3D_scanner"/>
       <addaction name="menuKinect_v2"/>
       <addaction name="menuRealSense_R200"/>
       <addaction name="menuRealSense_ZR300"/>
+      <addaction name="menuRealSense_D415"/>
+      <addaction name="menuRealSense_D435"/>
      </widget>
      <widget class="QMenu" name="menuStereo_camera">
       <property name="title">
@@ -225,8 +247,19 @@
        <addaction name="actionStereoZed"/>
        <addaction name="actionStereoUsb"/>
       </widget>
+      <widget class="QMenu" name="menuTara_Camera">
+       <property name="title">
+        <string>Tara Camera</string>
+       </property>
+       <property name="icon">
+        <iconset resource="../GuiLib.qrc">
+         <normaloff>:/images/tara.png</normaloff>:/images/tara.png</iconset>
+       </property>
+       <addaction name="actionStereoTara"/>
+      </widget>
       <addaction name="menuBumblebee2_2"/>
       <addaction name="menuZed_camera"/>
+      <addaction name="menuTara_Camera"/>
      </widget>
      <addaction name="menuRGB_D_camera"/>
      <addaction name="menuStereo_camera"/>
@@ -321,7 +354,16 @@
      <property name="spacing">
       <number>0</number>
      </property>
-     <property name="margin">
+     <property name="leftMargin">
+      <number>0</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
       <number>0</number>
      </property>
      <item>
@@ -359,7 +401,16 @@
      <property name="spacing">
       <number>0</number>
      </property>
-     <property name="margin">
+     <property name="leftMargin">
+      <number>0</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
       <number>0</number>
      </property>
      <item>
@@ -602,7 +653,16 @@
      <property name="spacing">
       <number>0</number>
      </property>
-     <property name="margin">
+     <property name="leftMargin">
+      <number>0</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
       <number>0</number>
      </property>
      <item>
@@ -623,7 +683,16 @@
      <property name="spacing">
       <number>0</number>
      </property>
-     <property name="margin">
+     <property name="leftMargin">
+      <number>0</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
       <number>0</number>
      </property>
      <item>
@@ -644,7 +713,16 @@
      <property name="spacing">
       <number>0</number>
      </property>
-     <property name="margin">
+     <property name="leftMargin">
+      <number>0</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
       <number>0</number>
      </property>
      <item>
@@ -665,7 +743,16 @@
      <property name="spacing">
       <number>0</number>
      </property>
-     <property name="margin">
+     <property name="leftMargin">
+      <number>0</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
       <number>0</number>
      </property>
     </layout>
@@ -683,7 +770,16 @@
      <property name="spacing">
       <number>0</number>
      </property>
-     <property name="margin">
+     <property name="leftMargin">
+      <number>0</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
       <number>0</number>
      </property>
     </layout>
@@ -704,7 +800,16 @@
      <property name="spacing">
       <number>0</number>
      </property>
-     <property name="margin">
+     <property name="leftMargin">
+      <number>0</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
       <number>0</number>
      </property>
      <item>
@@ -725,7 +830,16 @@
      <property name="spacing">
       <number>0</number>
      </property>
-     <property name="margin">
+     <property name="leftMargin">
+      <number>0</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
       <number>0</number>
      </property>
      <item>
@@ -749,7 +863,16 @@
      <property name="spacing">
       <number>0</number>
      </property>
-     <property name="margin">
+     <property name="leftMargin">
+      <number>0</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
       <number>0</number>
      </property>
      <item>
@@ -819,7 +942,16 @@
      <property name="spacing">
       <number>0</number>
      </property>
-     <property name="margin">
+     <property name="leftMargin">
+      <number>0</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
       <number>0</number>
      </property>
      <item>
@@ -854,7 +986,7 @@
   </action>
   <action name="actionHelp">
    <property name="enabled">
-    <bool>false</bool>
+    <bool>true</bool>
    </property>
    <property name="text">
     <string>Help</string>
@@ -1074,7 +1206,7 @@
   </action>
   <action name="actionView_high_res_point_cloud">
    <property name="text">
-    <string>View high-res point clouds...</string>
+    <string>View point clouds...</string>
    </property>
   </action>
   <action name="actionTrigger_a_new_map">
@@ -1148,16 +1280,6 @@
   <action name="actionExport_2D_Grid_map_bmp_png">
    <property name="text">
     <string>Export 2D grid map (*.png *.bmp)...</string>
-   </property>
-  </action>
-  <action name="actionExport_2D_scans_ply_pcd">
-   <property name="text">
-    <string>Export 2D-3D scans (*.ply *.pcd)...</string>
-   </property>
-  </action>
-  <action name="actionView_scans">
-   <property name="text">
-    <string>View scans...</string>
    </property>
   </action>
   <action name="actionOpen_database">
@@ -1274,10 +1396,16 @@
    <property name="text">
     <string>KITTI format (*.txt)</string>
    </property>
+   <property name="toolTip">
+    <string>KITTI (stamp + 12 values transform)</string>
+   </property>
   </action>
   <action name="actionRGBD_SLAM_format_txt">
    <property name="text">
     <string>RGBD-SLAM format (*.txt)</string>
+   </property>
+   <property name="toolTip">
+    <string>RGBD-SLAM (stamp tx ty tz qx qy qz qw)</string>
    </property>
   </action>
   <action name="actionTORO_graph">
@@ -1293,6 +1421,9 @@
   <action name="actionRaw_format_txt">
    <property name="text">
     <string>Raw format (*.txt)</string>
+   </property>
+   <property name="toolTip">
+    <string>Raw format (12 values transform)</string>
    </property>
   </action>
   <action name="actionG2o_g2o">
@@ -1370,6 +1501,46 @@
     <string>RealSense</string>
    </property>
   </action>
+  <action name="actionKinect_for_Windows_SDK_v2">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Kinect for Windows SDK v2</string>
+   </property>
+  </action>
+  <action name="actionRealSense2_D435">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>RealSense2</string>
+   </property>
+  </action>
+  <action name="actionRealSense2_D415">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>RealSense2</string>
+   </property>
+  </action>
+  <action name="actionStereoTara">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Tara Stereo USB Camera</string>
+   </property>
+  </action>
+  <action name="actionRGBD_SLAM_motion_capture_format_txt">
+   <property name="text">
+    <string>RGBD-SLAM motion capture format (*.txt)</string>
+   </property>
+   <property name="toolTip">
+    <string>RGBD-SLAM (stamp tx ty tz qx qy qz qw)</string>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>
@@ -1398,7 +1569,7 @@
   <customwidget>
    <class>rtabmap::MapVisibilityWidget</class>
    <extends>QWidget</extends>
-   <header>MapVisibilityWidget.h</header>
+   <header>../include/rtabmap/gui/MapVisibilityWidget.h</header>
    <container>1</container>
   </customwidget>
   <customwidget>

@@ -31,6 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "rtabmap/core/util3d_filtering.h"
 #include "rtabmap/core/util3d.h"
 #include "rtabmap/core/OdometryEvent.h"
+#include "rtabmap/core/Odometry.h"
 #include "rtabmap/utilite/ULogger.h"
 #include "rtabmap/utilite/UConversion.h"
 #include "rtabmap/utilite/UCv2Qt.h"
@@ -78,6 +79,7 @@ OdometryViewer::OdometryViewer(
 
 	cloudView_->setCameraTargetLocked();
 	cloudView_->setGridShown(true);
+	cloudView_->setFrustumShown(true);
 
 	QLabel * maxCloudsLabel = new QLabel("Max clouds", this);
 	QLabel * voxelLabel = new QLabel("Voxel", this);
@@ -178,7 +180,7 @@ void OdometryViewer::clear()
 void OdometryViewer::processData(const rtabmap::OdometryEvent & odom)
 {
 	processingData_ = true;
-	int quality = odom.info().inliers;
+	int quality = odom.info().reg.inliers;
 
 	bool lost = false;
 	bool lostStateChanged = false;
@@ -192,11 +194,11 @@ void OdometryViewer::processData(const rtabmap::OdometryEvent & odom)
 
 		lost = true;
 	}
-	else if(odom.info().inliers>0 &&
+	else if(odom.info().reg.inliers>0 &&
 			qualityWarningThr_ &&
-			odom.info().inliers < qualityWarningThr_)
+			odom.info().reg.inliers < qualityWarningThr_)
 	{
-		UDEBUG("odom warn, quality(inliers)=%d thr=%d", odom.info().inliers, qualityWarningThr_);
+		UDEBUG("odom warn, quality(inliers)=%d thr=%d", odom.info().reg.inliers, qualityWarningThr_);
 		lostStateChanged = imageView_->getBackgroundColor() == Qt::darkRed;
 		imageView_->setBackgroundColor(Qt::darkYellow);
 		cloudView_->setBackgroundColor(Qt::darkYellow);
@@ -296,15 +298,24 @@ void OdometryViewer::processData(const rtabmap::OdometryEvent & odom)
 	{
 		lastOdomPose_ = odom.pose();
 		cloudView_->updateCameraTargetPosition(odom.pose());
+
+		if(odom.data().cameraModels().size() && !odom.data().cameraModels()[0].localTransform().isNull())
+		{
+			cloudView_->updateCameraFrustums(odom.pose(), odom.data().cameraModels());
+		}
+		else if(!odom.data().stereoCameraModel().localTransform().isNull())
+		{
+			cloudView_->updateCameraFrustum(odom.pose(), odom.data().stereoCameraModel());
+		}
 	}
 
 	if(scanShown_->isChecked())
 	{
 		// scan local map
-		if(!odom.info().localScanMap.empty())
+		if(!odom.info().localScanMap.isEmpty())
 		{
 			pcl::PointCloud<pcl::PointNormal>::Ptr cloud;
-			cloud = util3d::laserScanToPointCloudNormal(odom.info().localScanMap);
+			cloud = util3d::laserScanToPointCloudNormal(odom.info().localScanMap, odom.info().localScanMap.localTransform());
 			if(!cloudView_->addCloud("scanMapOdom", cloud, Transform::getIdentity(), Qt::blue))
 			{
 				UERROR("Adding scanMapOdom to viewer failed!");
@@ -316,12 +327,12 @@ void OdometryViewer::processData(const rtabmap::OdometryEvent & odom)
 			}
 		}
 		// scan cloud
-		if(!odom.data().laserScanRaw().empty())
+		if(!odom.data().laserScanRaw().isEmpty())
 		{
-			cv::Mat scan = odom.data().laserScanRaw();
+			LaserScan scan = odom.data().laserScanRaw();
 
 			pcl::PointCloud<pcl::PointNormal>::Ptr cloud;
-			cloud = util3d::laserScanToPointCloudNormal(scan, odom.pose());
+			cloud = util3d::laserScanToPointCloudNormal(scan, odom.pose() * scan.localTransform());
 
 			if(!cloudView_->addCloud("scanOdom", cloud, Transform::getIdentity(), Qt::magenta))
 			{
@@ -343,23 +354,28 @@ void OdometryViewer::processData(const rtabmap::OdometryEvent & odom)
 	// 3d features
 	if(featuresShown_->isChecked())
 	{
-		if(!odom.info().localMap.empty())
+		if(!odom.info().localMap.empty() && !odom.pose().isNull())
 		{
 			pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 			cloud->resize(odom.info().localMap.size());
 			int i=0;
 			for(std::map<int, cv::Point3f>::const_iterator iter=odom.info().localMap.begin(); iter!=odom.info().localMap.end(); ++iter)
 			{
-				(*cloud)[i].x = iter->second.x;
-				(*cloud)[i].y = iter->second.y;
-				(*cloud)[i].z = iter->second.z;
+				// filter very far features from current location
+				if(uNormSquared(iter->second.x-odom.pose().x(), iter->second.y-odom.pose().y(), iter->second.z-odom.pose().z()) < 50*50)
+				{
+					(*cloud)[i].x = iter->second.x;
+					(*cloud)[i].y = iter->second.y;
+					(*cloud)[i].z = iter->second.z;
 
-				// green = inlier, yellow = outliers
-				bool inlier = odom.info().words.find(iter->first) != odom.info().words.end();
-				(*cloud)[i].r = inlier?0:255;
-				(*cloud)[i].g = 255;
-				(*cloud)[i++].b = 0;
+					// green = inlier, yellow = outliers
+					bool inlier = odom.info().words.find(iter->first) != odom.info().words.end();
+					(*cloud)[i].r = inlier?0:255;
+					(*cloud)[i].g = 255;
+					(*cloud)[i++].b = 0;
+				}
 			}
+			cloud->resize(i);
 
 			if(!cloudView_->addCloud("featuresOdom", cloud))
 			{
@@ -379,14 +395,17 @@ void OdometryViewer::processData(const rtabmap::OdometryEvent & odom)
 
 	if(!odom.data().imageRaw().empty())
 	{
-		if(odom.info().type == 0)
+		if(odom.info().type == (int)Odometry::kTypeF2M || odom.info().type == (int)Odometry::kTypeORBSLAM2)
 		{
 			imageView_->setFeatures(odom.info().words, odom.data().depthRaw(), Qt::yellow);
 		}
-		else if(odom.info().type == 1)
+		else if(odom.info().type == (int)Odometry::kTypeF2F ||
+				odom.info().type == (int)Odometry::kTypeViso2 ||
+				odom.info().type == (int)Odometry::kTypeFovis ||
+				odom.info().type == (int)Odometry::kTypeMSCKF)
 		{
 			std::vector<cv::KeyPoint> kpts;
-			cv::KeyPoint::convert(odom.info().refCorners, kpts);
+			cv::KeyPoint::convert(odom.info().newCorners, kpts, 7);
 			imageView_->setFeatures(kpts, odom.data().depthRaw(), Qt::red);
 		}
 
@@ -399,7 +418,7 @@ void OdometryViewer::processData(const rtabmap::OdometryEvent & odom)
 				odomImageShow_ = imageView_->isImageShown();
 				odomImageDepthShow_ = imageView_->isImageDepthShown();
 			}
-			imageView_->setImageDepth(uCvMat2QImage(odom.data().imageRaw()));
+			imageView_->setImageDepth(odom.data().imageRaw());
 			imageView_->setImageShown(true);
 			imageView_->setImageDepthShown(true);
 		}
@@ -415,25 +434,29 @@ void OdometryViewer::processData(const rtabmap::OdometryEvent & odom)
 			imageView_->setImage(uCvMat2QImage(odom.data().imageRaw()));
 			if(imageView_->isImageDepthShown())
 			{
-				imageView_->setImageDepth(uCvMat2QImage(odom.data().depthOrRightRaw()));
+				imageView_->setImageDepth(odom.data().depthOrRightRaw());
 			}
 
-			if(odom.info().type == 0)
+			if( odom.info().type == Odometry::kTypeF2M ||
+				odom.info().type == (int)Odometry::kTypeORBSLAM2 ||
+				odom.info().type == (int)Odometry::kTypeMSCKF)
 			{
 				if(imageView_->isFeaturesShown())
 				{
-					for(unsigned int i=0; i<odom.info().wordMatches.size(); ++i)
+					for(unsigned int i=0; i<odom.info().reg.matchesIDs.size(); ++i)
 					{
-						imageView_->setFeatureColor(odom.info().wordMatches[i], Qt::red); // outliers
+						imageView_->setFeatureColor(odom.info().reg.matchesIDs[i], Qt::red); // outliers
 					}
-					for(unsigned int i=0; i<odom.info().wordInliers.size(); ++i)
+					for(unsigned int i=0; i<odom.info().reg.inliersIDs.size(); ++i)
 					{
-						imageView_->setFeatureColor(odom.info().wordInliers[i], Qt::green); // inliers
+						imageView_->setFeatureColor(odom.info().reg.inliersIDs[i], Qt::green); // inliers
 					}
 				}
 			}
 		}
-		if(odom.info().type == 1 && odom.info().cornerInliers.size())
+		if((odom.info().type == (int)Odometry::kTypeF2F ||
+			odom.info().type == (int)Odometry::kTypeViso2 ||
+			odom.info().type == (int)Odometry::kTypeFovis) && odom.info().cornerInliers.size())
 		{
 			if(imageView_->isFeaturesShown() || imageView_->isLinesShown())
 			{
@@ -448,10 +471,10 @@ void OdometryViewer::processData(const rtabmap::OdometryEvent & odom)
 					if(imageView_->isLinesShown())
 					{
 						imageView_->addLine(
-								odom.info().refCorners[odom.info().cornerInliers[i]].x,
-								odom.info().refCorners[odom.info().cornerInliers[i]].y,
 								odom.info().newCorners[odom.info().cornerInliers[i]].x,
 								odom.info().newCorners[odom.info().cornerInliers[i]].y,
+								odom.info().refCorners[odom.info().cornerInliers[i]].x,
+								odom.info().refCorners[odom.info().cornerInliers[i]].y,
 								Qt::blue);
 					}
 				}

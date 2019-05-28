@@ -29,6 +29,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define CAMERATANGO_H_
 
 #include <rtabmap/core/Camera.h>
+#include <rtabmap/core/GeodeticCoords.h>
 #include <rtabmap/utilite/UMutex.h>
 #include <rtabmap/utilite/USemaphore.h>
 #include <rtabmap/utilite/UEventsSender.h>
@@ -80,6 +81,7 @@ public:
 
 	virtual bool init(const std::string & calibrationFolder = ".", const std::string & cameraName = "");
 	void close(); // close Tango connection
+	void resetOrigin();
 	virtual bool isCalibrated() const;
 	virtual std::string getSerial() const;
 	const CameraModel & getCameraModel() const {return model_;}
@@ -89,6 +91,8 @@ public:
 	void setSmoothing(bool enabled) {smoothing_ = enabled;}
 	void setRawScanPublished(bool enabled) {rawScanPublished_ = enabled;}
 	void setScreenRotation(TangoSupportRotation colorCameraToDisplayRotation) {colorCameraToDisplayRotation_ = colorCameraToDisplayRotation;}
+	void setGPS(const GPS & gps);
+	void addEnvSensor(int type, float value);
 
 	void cloudReceived(const cv::Mat & cloud, double timestamp);
 	void rgbReceived(const cv::Mat & tangoImage, int type, double timestamp);
@@ -106,7 +110,8 @@ private:
 
 private:
 	void * tango_config_;
-	bool firstFrame_;
+	Transform previousPose_;
+	double previousStamp_;
 	UTimer cameraStartedTime_;
 	double stampEpochOffset_;
 	bool colorCamera_;
@@ -125,6 +130,10 @@ private:
 	TangoSupportRotation colorCameraToDisplayRotation_;
 	cv::Mat fisheyeRectifyMapX_;
 	cv::Mat fisheyeRectifyMapY_;
+	GPS lastKnownGPS_;
+	EnvSensors lastEnvSensors_;
+	Transform originOffset_;
+	bool originUpdate_;
 };
 
 } /* namespace rtabmap */

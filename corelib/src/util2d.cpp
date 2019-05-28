@@ -38,6 +38,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/video/tracking.hpp>
 #include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/types_c.h>
 #include <map>
 #include <Eigen/Core>
 
@@ -126,16 +127,17 @@ std::vector<cv::Point2f> calcStereoCorrespondences(
 		cv::Size winSize,
 		int maxLevel,
 		int iterations,
-		int minDisparity,
-		int maxDisparity,
+		float minDisparityF,
+		float maxDisparityF,
 		bool ssdApproach)
 {
 	UDEBUG("winSize=(%d,%d)", winSize.width, winSize.height);
 	UDEBUG("maxLevel=%d", maxLevel);
-	UDEBUG("minDisparity=%d", minDisparity);
-	UDEBUG("maxDisparity=%d", maxDisparity);
+	UDEBUG("minDisparity=%f", minDisparityF);
+	UDEBUG("maxDisparity=%f", maxDisparityF);
 	UDEBUG("iterations=%d", iterations);
 	UDEBUG("ssdApproach=%d", ssdApproach?1:0);
+	UASSERT(minDisparityF >= 0.0f && minDisparityF <= maxDisparityF);
 
 	// window should be odd
 	if(winSize.width%2 == 0)
@@ -164,6 +166,8 @@ std::vector<cv::Point2f> calcStereoCorrespondences(
 	int totalIterations = 0;
 	int noSubPixel = 0;
 	int added = 0;
+	int minDisparity = std::floor(minDisparityF);
+	int maxDisparity = std::floor(maxDisparityF);
 	for(unsigned int i=0; i<leftCorners.size(); ++i)
 	{
 		int oi=0;
@@ -172,7 +176,7 @@ std::vector<cv::Point2f> calcStereoCorrespondences(
 		int tmpMinDisparity = minDisparity;
 		int tmpMaxDisparity = maxDisparity;
 
-		int iterations = 0;
+		int iterationsDone = 0;
 		for(int level=maxLevel; level>=0; --level)
 		{
 			UASSERT(level < (int)leftPyramid.size());
@@ -191,62 +195,65 @@ std::vector<cv::Point2f> calcStereoCorrespondences(
 				cv::Mat windowLeft(leftPyramid[level],
 						cv::Range(center.y-halfWin.height,center.y+halfWin.height+1),
 						cv::Range(center.x-halfWin.width,center.x+halfWin.width+1));
-				int minCol = center.x+localMaxDisparity-halfWin.width-1;
+				int minCol = center.x+localMaxDisparity-halfWin.width;
 				if(minCol < 0)
 				{
 					localMaxDisparity -= minCol;
 				}
 
-				int maxCol = center.x+localMinDisparity+halfWin.width+1;
-				if(maxCol >= leftPyramid[level].cols)
+				if(localMinDisparity > localMaxDisparity)
 				{
-					localMinDisparity += maxCol-leftPyramid[level].cols-1;
-				}
+					int length = localMinDisparity-localMaxDisparity+1;
+					std::vector<float> scores = std::vector<float>(length, 0.0f);
 
-				if(localMinDisparity < localMaxDisparity)
-				{
-					localMaxDisparity = localMinDisparity;
-				}
-				int length = localMinDisparity-localMaxDisparity+1;
-				std::vector<float> scores = std::vector<float>(length, 0.0f);
-
-				for(int d=localMinDisparity; d>localMaxDisparity; --d)
-				{
-					++iterations;
-					cv::Mat windowRight(rightPyramid[level],
-									cv::Range(center.y-halfWin.height,center.y+halfWin.height+1),
-									cv::Range(center.x+d-halfWin.width,center.x+d+halfWin.width+1));
-					scores[oi] = ssdApproach?ssd(windowLeft, windowRight):sad(windowLeft, windowRight);
-					if(scores[oi] > 0 && (bestScore < 0.0f || scores[oi] < bestScore))
+					for(int d=localMinDisparity; d>localMaxDisparity; --d)
 					{
-						bestScoreIndex = oi;
-						bestScore = scores[oi];
-					}
-					++oi;
-				}
-
-				if(bestScoreIndex>=0)
-				{
-					if(level>0)
-					{
-						tmpMaxDisparity = tmpMinDisparity+(bestScoreIndex+1)*(1<<level);
-						tmpMaxDisparity+=tmpMaxDisparity%level;
-						if(tmpMaxDisparity > maxDisparity)
+						++iterationsDone;
+						cv::Mat windowRight(rightPyramid[level],
+										cv::Range(center.y-halfWin.height,center.y+halfWin.height+1),
+										cv::Range(center.x+d-halfWin.width,center.x+d+halfWin.width+1));
+						scores[oi] = ssdApproach?ssd(windowLeft, windowRight):sad(windowLeft, windowRight);
+						if(scores[oi] > 0 && (bestScore < 0.0f || scores[oi] < bestScore))
 						{
-							tmpMaxDisparity = maxDisparity;
+							bestScoreIndex = oi;
+							bestScore = scores[oi];
 						}
-						tmpMinDisparity = tmpMinDisparity+(bestScoreIndex-1)*(1<<level);
-						tmpMinDisparity -= tmpMinDisparity%level;
-						if(tmpMinDisparity < minDisparity)
+						++oi;
+					}
+
+					if(oi>1)
+					{
+						float m = uMean(scores);
+						float st = sqrt(uVariance(scores, m));
+						if(bestScore > st)
 						{
-							tmpMinDisparity = minDisparity;
+							bestScoreIndex = -1;
+						}
+					}
+
+					if(bestScoreIndex>=0)
+					{
+						if(bestScoreIndex>=0 && level>0)
+						{
+							tmpMaxDisparity = tmpMinDisparity+(bestScoreIndex+1)*(1<<level);
+							tmpMaxDisparity+=tmpMaxDisparity%level;
+							if(tmpMaxDisparity > maxDisparity)
+							{
+								tmpMaxDisparity = maxDisparity;
+							}
+							tmpMinDisparity = tmpMinDisparity+(bestScoreIndex-1)*(1<<level);
+							tmpMinDisparity -= tmpMinDisparity%level;
+							if(tmpMinDisparity < minDisparity)
+							{
+								tmpMinDisparity = minDisparity;
+							}
 						}
 					}
 				}
 			}
 		}
 		disparityTime+=timer.ticks();
-		totalIterations+=iterations;
+		totalIterations+=iterationsDone;
 
 		if(bestScoreIndex>=0)
 		{
@@ -316,7 +323,8 @@ std::vector<cv::Point2f> calcStereoCorrespondences(
 					cache.insert(std::make_pair(previousXc, previousVc));
 				}
 
-				if(xc < leftCorners[i].x+float(d)-1.0f || xc > leftCorners[i].x+float(d)+1.0f)
+				if(/*xc < leftCorners[i].x+float(d)-1.0f || xc > leftCorners[i].x+float(d)+1.0f ||*/
+					float(leftCorners[i].x - xc) <= minDisparityF)
 				{
 					reject = true;
 					break;
@@ -746,9 +754,10 @@ cv::Mat disparityFromStereoImages(
 		leftMono = leftImage;
 	}
 	cv::Mat disparity;
-
-	StereoBM stereo(parameters);
-	return stereo.computeDisparity(leftMono, rightImage);
+	StereoDense * stereo = StereoDense::create(parameters);
+	disparity = stereo->computeDisparity(leftMono, rightImage);
+	delete stereo;
+	return disparity;
 }
 
 cv::Mat depthFromDisparity(const cv::Mat & disparity,
@@ -939,7 +948,7 @@ float getDepth(
 		const cv::Mat & depthImage,
 		float x, float y,
 		bool smoothing,
-		float maxZError,
+		float depthErrorRatio,
 		bool estWithNeighborsIfNull)
 {
 	UASSERT(!depthImage.empty());
@@ -1021,10 +1030,15 @@ float getDepth(
 							tmp = d;
 							++count;
 						}
-						else if(fabs(d - tmp/float(count)) < maxZError)
+						else
 						{
-							tmp += d;
-							++count;
+							float depthError = depthErrorRatio * tmp;
+							if(fabs(d - tmp/float(count)) < depthError)
+
+							{
+								tmp += d;
+								++count;
+							}
 						}
 					}
 				}
@@ -1062,8 +1076,10 @@ float getDepth(
 							d = depthImage.at<float>(vv,uu);
 						}
 
+						float depthError = depthErrorRatio * depth;
+
 						// ignore if not valid or depth difference is too high
-						if(d != 0.0f && uIsFinite(d) && fabs(d - depth) < maxZError)
+						if(d != 0.0f && uIsFinite(d) && fabs(d - depth) < depthError)
 						{
 							if(uu == u || vv == v)
 							{
@@ -2009,7 +2025,7 @@ cv::Mat exposureFusion(const std::vector<cv::Mat> & images)
 	fusion.convertTo(rgb8, CV_8UC3, 255.0);
 	fusion = rgb8;
 #else
-	UWARN("Exposure fusion is only avaiable when rtabmap is built with OpenCV3.");
+	UWARN("Exposure fusion is only available when rtabmap is built with OpenCV3.");
 	if (images.size())
 	{
 		fusion = images[0].clone();

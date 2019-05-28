@@ -71,6 +71,17 @@ Java_com_introlab_rtabmap_RTABMapLib_openDatabase(
 	return app.openDatabase(databasePathC, databaseInMemory, optimize);
 }
 
+JNIEXPORT int JNICALL
+Java_com_introlab_rtabmap_RTABMapLib_openDatabase2(
+    JNIEnv* env, jobject, jstring databaseSource, jstring databasePath, bool databaseInMemory, bool optimize)
+{
+	std::string databasePathC;
+	GetJStringContent(env,databasePath,databasePathC);
+	std::string databaseSourceC;
+	GetJStringContent(env,databaseSource,databaseSourceC);
+	return app.openDatabase(databasePathC, databaseInMemory, optimize, databaseSourceC);
+}
+
 JNIEXPORT bool JNICALL
 Java_com_introlab_rtabmap_RTABMapLib_onTangoServiceConnected(
 		JNIEnv* env, jobject, jobject iBinder) {
@@ -157,6 +168,24 @@ Java_com_introlab_rtabmap_RTABMapLib_setPointSize(
 	return app.setPointSize(value);
 }
 JNIEXPORT void JNICALL
+Java_com_introlab_rtabmap_RTABMapLib_setFOV(
+		JNIEnv*, jobject, float fov)
+{
+	return app.setFOV(fov);
+}
+JNIEXPORT void JNICALL
+Java_com_introlab_rtabmap_RTABMapLib_setOrthoCropFactor(
+		JNIEnv*, jobject, float value)
+{
+	return app.setOrthoCropFactor(value);
+}
+JNIEXPORT void JNICALL
+Java_com_introlab_rtabmap_RTABMapLib_setGridRotation(
+		JNIEnv*, jobject, float value)
+{
+	return app.setGridRotation(value);
+}
+JNIEXPORT void JNICALL
 Java_com_introlab_rtabmap_RTABMapLib_setLighting(
 		JNIEnv*, jobject, bool enabled)
 {
@@ -167,6 +196,12 @@ Java_com_introlab_rtabmap_RTABMapLib_setBackfaceCulling(
 		JNIEnv*, jobject, bool enabled)
 {
 	return app.setBackfaceCulling(enabled);
+}
+JNIEXPORT void JNICALL
+Java_com_introlab_rtabmap_RTABMapLib_setWireframe(
+		JNIEnv*, jobject, bool enabled)
+{
+	return app.setWireframe(enabled);
 }
 JNIEXPORT void JNICALL
 Java_com_introlab_rtabmap_RTABMapLib_setLocalizationMode(
@@ -305,6 +340,33 @@ Java_com_introlab_rtabmap_RTABMapLib_setMappingParameter(
 }
 
 JNIEXPORT void JNICALL
+Java_com_introlab_rtabmap_RTABMapLib_setGPS(
+		JNIEnv*, jobject,
+		double stamp,
+		double longitude,
+		double latitude,
+		double altitude,
+		double accuracy,
+		double bearing)
+{
+	return app.setGPS(rtabmap::GPS(stamp,
+			longitude,
+			latitude,
+			altitude,
+			accuracy,
+			bearing));
+}
+
+JNIEXPORT void JNICALL
+Java_com_introlab_rtabmap_RTABMapLib_addEnvSensor(
+		JNIEnv*, jobject,
+		int type,
+		float value)
+{
+	return app.addEnvSensor(type, value);
+}
+
+JNIEXPORT void JNICALL
 Java_com_introlab_rtabmap_RTABMapLib_resetMapping(
 		JNIEnv*, jobject)
 {
@@ -330,11 +392,11 @@ Java_com_introlab_rtabmap_RTABMapLib_cancelProcessing(
 JNIEXPORT bool JNICALL
 Java_com_introlab_rtabmap_RTABMapLib_exportMesh(
 		JNIEnv* env, jobject,
-		jstring filePath,
 		float cloudVoxelSize,
 		bool regenerateCloud,
 		bool meshing,
 		int textureSize,
+		int textureCount,
 		int normalK,
 		bool optimized,
 		float optimizedVoxelSize,
@@ -342,19 +404,17 @@ Java_com_introlab_rtabmap_RTABMapLib_exportMesh(
 		int optimizedMaxPolygons,
 		float optimizedColorRadius,
 		bool optimizedCleanWhitePolygons,
-		bool optimizedColorWhitePolygons,
+		int optimizedMinClusterSize,
 		float optimizedMaxTextureDistance,
 		int optimizedMinTextureClusterSize,
 		bool blockRendering)
 {
-	std::string filePathC;
-	GetJStringContent(env,filePath,filePathC);
 	return app.exportMesh(
-			filePathC,
 			cloudVoxelSize,
 			regenerateCloud,
 			meshing,
 			textureSize,
+			textureCount,
 			normalK,
 			optimized,
 			optimizedVoxelSize,
@@ -362,7 +422,7 @@ Java_com_introlab_rtabmap_RTABMapLib_exportMesh(
 			optimizedMaxPolygons,
 			optimizedColorRadius,
 			optimizedCleanWhitePolygons,
-			optimizedColorWhitePolygons,
+			optimizedMinClusterSize,
 			optimizedMaxTextureDistance,
 			optimizedMinTextureClusterSize,
 			blockRendering);
@@ -374,6 +434,18 @@ Java_com_introlab_rtabmap_RTABMapLib_postExportation(
 {
 	return app.postExportation(visualize);
 }
+
+JNIEXPORT bool JNICALL
+Java_com_introlab_rtabmap_RTABMapLib_writeExportedMesh(
+		JNIEnv* env, jobject, jstring directory, jstring name)
+{
+	std::string directoryC;
+	GetJStringContent(env,directory,directoryC);
+	std::string nameC;
+	GetJStringContent(env,name,nameC);
+	return app.writeExportedMesh(directoryC, nameC);
+}
+
 
 JNIEXPORT int JNICALL
 Java_com_introlab_rtabmap_RTABMapLib_postProcessing(

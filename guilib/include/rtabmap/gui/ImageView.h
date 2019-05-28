@@ -25,8 +25,8 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef IMAGEVIEW_H_
-#define IMAGEVIEW_H_
+#ifndef RTABMAP_IMAGEVIEW_H_
+#define RTABMAP_IMAGEVIEW_H_
 
 #include "rtabmap/gui/RtabmapGuiExp.h" // DLL export/import defines
 
@@ -36,6 +36,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <QtCore/QSettings>
 #include <opencv2/features2d/features2d.hpp>
 #include <map>
+#include "rtabmap/utilite/UCv2Qt.h"
 
 class QAction;
 class QMenu;
@@ -61,9 +62,16 @@ public:
 	bool isFeaturesShown() const;
 	bool isLinesShown() const;
 	int getAlpha() const {return _alpha;}
+	int getFeaturesSize() const {return _featuresSize;}
 	bool isGraphicsViewMode() const;
 	bool isGraphicsViewScaled() const;
+	bool isGraphicsViewScaledToHeight() const;
+	const QColor & getDefaultBackgroundColor() const;
+	const QColor & getDefaultFeatureColor() const;
+	const QColor & getDefaultMatchingFeatureColor() const;
+	const QColor & getDefaultMatchingLineColor() const;
 	const QColor & getBackgroundColor() const;
+	uCvQtDepthColorMap getDepthColorMap() const;
 
 	float viewScale() const;
 
@@ -73,6 +81,11 @@ public:
 	void setLinesShown(bool shown);
 	void setGraphicsViewMode(bool on);
 	void setGraphicsViewScaled(bool scaled);
+	void setGraphicsViewScaledToHeight(bool scaled);
+	void setDefaultBackgroundColor(const QColor & color);
+	void setDefaultFeatureColor(const QColor & color);
+	void setDefaultMatchingFeatureColor(const QColor & color);
+	void setDefaultMatchingLineColor(const QColor & color);
 	void setBackgroundColor(const QColor & color);
 
 	void setFeatures(const std::multimap<int, cv::KeyPoint> & refWords, const cv::Mat & depth = cv::Mat(), const QColor & color = Qt::yellow);
@@ -80,10 +93,12 @@ public:
 	void addFeature(int id, const cv::KeyPoint & kpt, float depth, QColor color);
 	void addLine(float x1, float y1, float x2, float y2, QColor color, const QString & text = QString());
 	void setImage(const QImage & image);
+	void setImageDepth(const cv::Mat & imageDepth);
 	void setImageDepth(const QImage & image);
 	void setFeatureColor(int id, QColor color);
 	void setFeaturesColor(QColor color);
 	void setAlpha(int alpha);
+	void setFeaturesSize(int size);
 	void setSceneRect(const QRectF & rect);
 
 	const QMultiMap<int, rtabmap::KeypointItem *> & getFeatures() const {return _features;}
@@ -94,7 +109,7 @@ public:
 
 	virtual QSize sizeHint() const;
 
-signals:
+Q_SIGNALS:
 	void configChanged();
 
 protected:
@@ -102,26 +117,44 @@ protected:
 	virtual void resizeEvent(QResizeEvent* event);
 	virtual void contextMenuEvent(QContextMenuEvent * e);
 
-private slots:
+private Q_SLOTS:
 	void sceneRectChanged(const QRectF &rect);
 
 private:
 	void updateOpacity();
 	void computeScaleOffsets(const QRect & targetRect, float & scale, float & offsetX, float & offsetY) const;
+	QIcon createIcon(const QColor & color);
 
 private:
 	QString _savedFileName;
 	int _alpha;
+	int _featuresSize;
+	QColor _defaultBgColor;
+	QColor _defaultFeatureColor;
+	QColor _defaultMatchingFeatureColor;
+	QColor _defaultMatchingLineColor;
 
 	QMenu * _menu;
 	QAction * _showImage;
 	QAction * _showImageDepth;
 	QAction * _showFeatures;
 	QAction * _showLines;
+	QAction * _setFeatureColor;
+	QAction * _setMatchingFeatureColor;
+	QAction * _setMatchingLineColor;
 	QAction * _saveImage;
 	QAction * _setAlpha;
+	QAction * _setFeaturesSize;
 	QAction * _graphicsViewMode;
 	QAction * _graphicsViewScaled;
+	QAction * _graphicsViewScaledToHeight;
+	QAction * _graphicsViewNoScaling;
+	QAction * _colorMapWhiteToBlack;
+	QAction * _colorMapBlackToWhite;
+	QAction * _colorMapRedToBlue;
+	QAction * _colorMapBlueToRed;
+	QMenu * _featureMenu;
+	QMenu * _scaleMenu;
 
 	QGraphicsView * _graphicsView;
 	QMultiMap<int, rtabmap::KeypointItem *> _features;
@@ -130,6 +163,7 @@ private:
 	QGraphicsPixmapItem * _imageDepthItem;
 	QPixmap _image;
 	QPixmap _imageDepth;
+	cv::Mat _imageDepthCv;
 };
 
 }

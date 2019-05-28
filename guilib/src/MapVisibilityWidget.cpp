@@ -25,7 +25,7 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include "MapVisibilityWidget.h"
+#include "rtabmap/gui/MapVisibilityWidget.h"
 
 #include <QCheckBox>
 #include <QVBoxLayout>
@@ -127,7 +127,7 @@ void MapVisibilityWidget::signalVisibility()
 {
 	QCheckBox * check = qobject_cast<QCheckBox*>(sender());
 	_mask.at(check->text().split('(').first().toInt()) = check->isChecked();
-	emit visibilityChanged(check->text().split('(').first().toInt(), check->isChecked());
+	Q_EMIT visibilityChanged(check->text().split('(').first().toInt(), check->isChecked());
 }
 
 void MapVisibilityWidget::selectAll(bool checked)

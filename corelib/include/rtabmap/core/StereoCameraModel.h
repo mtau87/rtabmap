@@ -86,6 +86,7 @@ public:
 	bool isValidForRectification() const {return left_.isValidForRectification() && right_.isValidForRectification();}
 
 	void initRectificationMap() {left_.initRectificationMap(); right_.initRectificationMap();}
+	bool isRectificationMapInitialized() {return left_.isRectificationMapInitialized() && right_.isRectificationMapInitialized();}
 
 	void setName(const std::string & name, const std::string & leftSuffix = "left", const std::string & rightSuffix = "right");
 	const std::string & name() const {return name_;}
@@ -96,6 +97,9 @@ public:
 	bool load(const std::string & directory, const std::string & cameraName, bool ignoreStereoTransform = true);
 	bool save(const std::string & directory, bool ignoreStereoTransform = true) const;
 	bool saveStereoTransform(const std::string & directory) const;
+	std::vector<unsigned char> serialize() const;
+	unsigned int deserialize(const std::vector<unsigned char>& data);
+	unsigned int deserialize(const unsigned char * data, unsigned int dataSize);
 
 	double baseline() const {return right_.fx()!=0.0 && left_.fx() != 0.0 ? left_.Tx() / left_.fx() - right_.Tx()/right_.fx():0.0;}
 

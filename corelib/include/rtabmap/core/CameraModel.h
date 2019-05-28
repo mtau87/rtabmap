@@ -75,6 +75,7 @@ public:
 	virtual ~CameraModel() {}
 
 	void initRectificationMap();
+	bool isRectificationMapInitialized() {return !mapX_.empty() && !mapY_.empty();}
 
 	bool isValidForProjection() const {return fx()>0.0 && fy()>0.0 && cx()>0.0 && cy()>0.0;}
 	bool isValidForReprojection() const {return fx()>0.0 && fy()>0.0 && cx()>0.0 && cy()>0.0 && imageWidth()>0 && imageHeight()>0;}
@@ -114,6 +115,9 @@ public:
 
 	bool load(const std::string & directory, const std::string & cameraName);
 	bool save(const std::string & directory) const;
+	std::vector<unsigned char> serialize() const;
+	unsigned int deserialize(const std::vector<unsigned char>& data);
+	unsigned int deserialize(const unsigned char * data, unsigned int dataSize);
 
 	CameraModel scaled(double scale) const;
 	CameraModel roi(const cv::Rect & roi) const;

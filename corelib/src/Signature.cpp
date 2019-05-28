@@ -120,7 +120,7 @@ void Signature::addLink(const Link & link)
 {
 	UDEBUG("Add link %d to %d (type=%d var=%f,%f)", link.to(), this->id(), (int)link.type(), link.transVariance(), link.rotVariance());
 	UASSERT_MSG(link.from() == this->id(), uFormat("%d->%d for signature %d (type=%d)", link.from(), link.to(), this->id(), link.type()).c_str());
-	UASSERT_MSG(link.to() != this->id(), uFormat("%d->%d for signature %d (type=%d)", link.from(), link.to(), this->id(), link.type()).c_str());
+	UASSERT_MSG((link.to() != this->id()) || link.type()==Link::kPosePrior, uFormat("%d->%d for signature %d (type=%d)", link.from(), link.to(), this->id(), link.type()).c_str());
 	std::pair<std::map<int, Link>::iterator, bool> pair = _links.insert(std::make_pair(link.to(), link));
 	UASSERT_MSG(pair.second, uFormat("Link %d (type=%d) already added to signature %d!", link.to(), link.type(), this->id()).c_str());
 	_linksModified = true;
@@ -290,6 +290,22 @@ cv::Mat Signature::getPoseCovariance() const
 		}
 	}
 	return covariance;
+}
+
+long Signature::getMemoryUsed(bool withSensorData) const // Return memory usage in Bytes
+{
+	long total =  _words.size() * sizeof(float) * 8 +
+				  _words3.size() * sizeof(float) * 4;
+	if(!_wordsDescriptors.empty())
+	{
+		total += _wordsDescriptors.size() * sizeof(int);
+		total += _wordsDescriptors.size() * _wordsDescriptors.begin()->second.total() * _wordsDescriptors.begin()->second.elemSize();
+	}
+	if(withSensorData)
+	{
+		total+=_sensorData.getMemoryUsed();
+	}
+	return total;
 }
 
 } //namespace rtabmap

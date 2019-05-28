@@ -46,23 +46,22 @@ public:
 		kUserClosure,
 		kVirtualClosure,
 		kNeighborMerged,
-		kUndef};
+		kPosePrior, // Absolute pose in /world frame, From == To
+		kLandmark,  // Transform /base_link -­­> /landmark, "From" is node observing the landmark "To"
+		kPoseOdom,  // Pose in /odom frame, From == To (mainly used for gravity constraints)
+		kEnd,
+		kAllWithLandmarks = 98,
+		kAllWithoutLandmarks = 99,
+		kUndef = 99};
 	Link();
 	Link(int from,
 			int to,
 			Type type,
 			const Transform & transform,
-			const cv::Mat & infMatrix = cv::Mat::eye(6,6,CV_64FC1),
-			const cv::Mat & userData = cv::Mat());
-	Link(int from,
-			int to,
-			Type type,
-			const Transform & transform,
-			double rotVariance,
-			double transVariance,
+			const cv::Mat & infMatrix = cv::Mat::eye(6,6,CV_64FC1), // information matrix: inverse of covariance matrix
 			const cv::Mat & userData = cv::Mat());
 
-	bool isValid() const {return from_ > 0 && to_ > 0 && !transform_.isNull() && type_!=kUndef;}
+	bool isValid() const {return from_ != 0 && to_ != 0 && !transform_.isNull() && type_!=kUndef;}
 
 	int from() const {return from_;}
 	int to() const {return to_;}
@@ -87,7 +86,6 @@ public:
 
 private:
 	void setInfMatrix(const cv::Mat & infMatrix);
-	void setVariance(double rotVariance, double transVariance);
 
 private:
 	int from_;

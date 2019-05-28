@@ -26,11 +26,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include <rtabmap/core/CameraModel.h>
+#include <rtabmap/core/Version.h>
 #include <rtabmap/utilite/ULogger.h>
 #include <rtabmap/utilite/UDirectory.h>
 #include <rtabmap/utilite/UFile.h>
 #include <rtabmap/utilite/UConversion.h>
 #include <rtabmap/utilite/UMath.h>
+#include <rtabmap/utilite/UStl.h>
 #include <opencv2/imgproc/imgproc.hpp>
 
 namespace rtabmap {
@@ -57,7 +59,7 @@ CameraModel::CameraModel(
 		localTransform_(localTransform)
 {
 	UASSERT(K_.empty() || (K_.rows == 3 && K_.cols == 3 && K_.type() == CV_64FC1));
-	UASSERT(D_.empty() || (D_.rows == 1 && (D_.cols == 4 || D_.cols == 5 || D_.cols == 8) && D_.type() == CV_64FC1));
+	UASSERT(D_.empty() || (D_.rows == 1 && (D_.cols == 4 || D_.cols == 5 || D_.cols == 6 || D_.cols == 8) && D_.type() == CV_64FC1));
 	UASSERT(R_.empty() || (R_.rows == 3 && R_.cols == 3 && R_.type() == CV_64FC1));
 	UASSERT(P_.empty() || (P_.rows == 3 && P_.cols == 4 && P_.type() == CV_64FC1));
 }
@@ -153,12 +155,33 @@ CameraModel::CameraModel(
 void CameraModel::initRectificationMap()
 {
 	UASSERT(imageSize_.height > 0 && imageSize_.width > 0);
-	UASSERT(D_.rows == 1 && (D_.cols == 4 || D_.cols == 5 || D_.cols == 8));
+	UASSERT(D_.rows == 1 && (D_.cols == 4 || D_.cols == 5 || D_.cols == 6 || D_.cols == 8));
 	UASSERT(R_.rows == 3 && R_.cols == 3);
 	UASSERT(P_.rows == 3 && P_.cols == 4);
 	// init rectification map
 	UINFO("Initialize rectify map");
-	cv::initUndistortRectifyMap(K_, D_, R_, P_, imageSize_, CV_32FC1, mapX_, mapY_);
+	if(D_.cols == 6)
+	{
+#if CV_MAJOR_VERSION > 2 or (CV_MAJOR_VERSION == 2 and (CV_MINOR_VERSION >4 or (CV_MINOR_VERSION == 4 and CV_SUBMINOR_VERSION >=10)))
+		// Equidistant / FishEye
+		// get only k parameters (k1,k2,p1,p2,k3,k4)
+		cv::Mat D(1, 4, CV_64FC1);
+		D.at<double>(0,0) = D_.at<double>(0,0);
+		D.at<double>(0,1) = D_.at<double>(0,1);
+		D.at<double>(0,2) = D_.at<double>(0,4);
+		D.at<double>(0,3) = D_.at<double>(0,5);
+		cv::fisheye::initUndistortRectifyMap(K_, D, R_, P_, imageSize_, CV_32FC1, mapX_, mapY_);
+	}
+	else
+#else
+		UWARN("Too old opencv version (%d,%d,%d) to support fisheye model (min 2.4.10 required)!",
+				CV_MAJOR_VERSION, CV_MINOR_VERSION, CV_SUBMINOR_VERSION);
+	}
+#endif
+	{
+		// RadialTangential
+		cv::initUndistortRectifyMap(K_, D_, R_, P_, imageSize_, CV_32FC1, mapX_, mapY_);
+	}
 }
 
 void CameraModel::setImageSize(const cv::Size & size)
@@ -263,6 +286,27 @@ bool CameraModel::load(const std::string & directory, const std::string & camera
 				UWARN("Missing \"distorsion_coefficients\" field in \"%s\"", filePath.c_str());
 			}
 
+			n = fs["distortion_model"];
+			if(n.type() != cv::FileNode::NONE)
+			{
+				std::string distortionModel = (std::string)n;
+				if(D_.cols>=4 &&
+				  (uStrContains(distortionModel, "fisheye") ||
+				   uStrContains(distortionModel, "equidistant")))
+				{
+					cv::Mat D = cv::Mat::zeros(1,6,CV_64FC1);
+					D.at<double>(0,0) = D_.at<double>(0,0);
+					D.at<double>(0,1) = D_.at<double>(0,1);
+					D.at<double>(0,4) = D_.at<double>(0,2);
+					D.at<double>(0,5) = D_.at<double>(0,3);
+					D_ = D;
+				}
+			}
+			else
+			{
+				UWARN("Missing \"distortion_model\" field in \"%s\"", filePath.c_str());
+			}
+
 			n = fs["rectification_matrix"];
 			if(n.type() != cv::FileNode::NONE)
 			{
@@ -347,20 +391,33 @@ bool CameraModel::save(const std::string & directory) const
 
 		if(!D_.empty())
 		{
+			cv::Mat D = D_;
+			if(D_.cols == 6)
+			{
+				D = cv::Mat(1,4,CV_64FC1);
+				D.at<double>(0,0) = D_.at<double>(0,0);
+				D.at<double>(0,1) = D_.at<double>(0,1);
+				D.at<double>(0,2) = D_.at<double>(0,4);
+				D.at<double>(0,3) = D_.at<double>(0,5);
+			}
 			fs << "distortion_coefficients" << "{";
-			fs << "rows" << D_.rows;
-			fs << "cols" << D_.cols;
-			fs << "data" << std::vector<double>((double*)D_.data, ((double*)D_.data)+(D_.rows*D_.cols));
+			fs << "rows" << D.rows;
+			fs << "cols" << D.cols;
+			fs << "data" << std::vector<double>((double*)D.data, ((double*)D.data)+(D.rows*D.cols));
 			fs << "}";
 
 			// compaibility with ROS
-			if(D_.cols > 5)
+			if(D_.cols == 6)
 			{
-				fs << "distortion_model" << "rational_polynomial";
+				fs << "distortion_model" << "equidistant"; // equidistant, fisheye
+			}
+			else if(D.cols > 5)
+			{
+				fs << "distortion_model" << "rational_polynomial"; // rad tan
 			}
 			else
 			{
-				fs << "distortion_model" << "plumb_bob";
+				fs << "distortion_model" << "plumb_bob"; // rad tan
 			}
 		}
 
@@ -391,6 +448,124 @@ bool CameraModel::save(const std::string & directory) const
 		UERROR("Cannot save calibration to \"%s\" because it is empty.", filePath.c_str());
 	}
 	return false;
+}
+
+std::vector<unsigned char> CameraModel::serialize() const
+{
+	const int headerSize = 11;
+	int header[headerSize] = {
+			RTABMAP_VERSION_MAJOR, RTABMAP_VERSION_MINOR, RTABMAP_VERSION_PATCH, // 0,1,2
+			0, //mono                                                            // 3,
+			imageSize_.width, imageSize_.height,                                 // 4,5
+			(int)K_.total(), (int)D_.total(), (int)R_.total(), (int)P_.total(),  // 6,7,8,9
+			localTransform_.isNull()?0:localTransform_.size()};                  // 10
+	UDEBUG("Header: %d %d %d %d %d %d %d %d %d %d %d", header[0],header[1],header[2],header[3],header[4],header[5],header[6],header[7],header[8],header[9],header[10]);
+	std::vector<unsigned char> data(
+			sizeof(int)*headerSize +
+			sizeof(double)*(K_.total()+D_.total()+R_.total()+P_.total()) +
+			(localTransform_.isNull()?0:sizeof(float)*localTransform_.size()));
+	memcpy(data.data(), header, sizeof(int)*headerSize);
+	int index = sizeof(int)*headerSize;
+	if(!K_.empty())
+	{
+		memcpy(data.data()+index, K_.data, sizeof(double)*(K_.total()));
+		index+=sizeof(double)*(K_.total());
+	}
+	if(!D_.empty())
+	{
+		memcpy(data.data()+index, D_.data, sizeof(double)*(D_.total()));
+		index+=sizeof(double)*(D_.total());
+	}
+	if(!R_.empty())
+	{
+		memcpy(data.data()+index, R_.data, sizeof(double)*(R_.total()));
+		index+=sizeof(double)*(R_.total());
+	}
+	if(!P_.empty())
+	{
+		memcpy(data.data()+index, P_.data, sizeof(double)*(P_.total()));
+		index+=sizeof(double)*(P_.total());
+	}
+	if(!localTransform_.isNull())
+	{
+		memcpy(data.data()+index, localTransform_.data(), sizeof(float)*(localTransform_.size()));
+		index+=sizeof(float)*(localTransform_.size());
+	}
+	return data;
+}
+
+unsigned int CameraModel::deserialize(const std::vector<unsigned char>& data)
+{
+	return deserialize(data.data(), data.size());
+}
+unsigned int CameraModel::deserialize(const unsigned char * data, unsigned int dataSize)
+{
+	*this = CameraModel();
+	int headerSize = 11;
+	if(dataSize >= sizeof(int)*headerSize)
+	{
+		UASSERT(data != 0);
+		const int * header = (const int *)data;
+		int type = header[3];
+		if(type == 0)
+		{
+			imageSize_.width = header[4];
+			imageSize_.height = header[5];
+			int iK = 6;
+			int iD = 7;
+			int iR = 8;
+			int iP = 9;
+			int iL = 10;
+			UDEBUG("Header: %d %d %d %d %d %d %d %d %d %d %d", header[0],header[1],header[2],header[3],header[4],header[5],header[6],header[7],header[8],header[9],header[10]);
+			unsigned int requiredDataSize = sizeof(int)*headerSize +
+					sizeof(double)*(header[iK]+header[iD]+header[iR]+header[iP]) +
+					sizeof(float)*header[iL];
+			UASSERT_MSG(dataSize >= requiredDataSize,
+					uFormat("dataSize=%d != required=%d (header: version %d.%d.%d %dx%d type=%d K=%d D=%d R=%d P=%d L=%d)",
+							dataSize,
+							requiredDataSize,
+							header[0], header[1], header[2], header[4], header[5], header[3],
+							header[iK], header[iD], header[iR],header[iP], header[iL]).c_str());
+			unsigned int index = sizeof(int)*headerSize;
+			if(header[iK] != 0)
+			{
+				UASSERT(header[iK] == 9);
+				K_ = cv::Mat(3, 3, CV_64FC1, (void*)(data+index)).clone();
+				index+=sizeof(double)*(K_.total());
+			}
+			if(header[iD] != 0)
+			{
+				D_ = cv::Mat(1, header[iD], CV_64FC1, (void*)(data+index)).clone();
+				index+=sizeof(double)*(D_.total());
+			}
+			if(header[iR] != 0)
+			{
+				UASSERT(header[iR] == 9);
+				R_ = cv::Mat(3, 3, CV_64FC1, (void*)(data+index)).clone();
+				index+=sizeof(double)*(R_.total());
+			}
+			if(header[iP] != 0)
+			{
+				UASSERT(header[iP] == 12);
+				P_ = cv::Mat(3, 4, CV_64FC1, (void*)(data+index)).clone();
+				index+=sizeof(double)*(P_.total());
+			}
+			if(header[iL] != 0)
+			{
+				UASSERT(header[iL] == 12);
+				memcpy(localTransform_.data(), data+index, sizeof(float)*localTransform_.size());
+				index+=sizeof(float)*localTransform_.size();
+			}
+			UASSERT(index <= dataSize);
+			return index;
+		}
+		else
+		{
+			UERROR("Serialized calibration is not mono (type=%d), use the appropriate class matching the type to deserialize.", type);
+		}
+	}
+	UERROR("Wrong serialized calibration data format detected (size in bytes=%d)! Cannot deserialize the data.", (int)dataSize);
+	return 0;
 }
 
 CameraModel CameraModel::scaled(double scale) const

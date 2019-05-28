@@ -64,8 +64,13 @@ class RTABMAP_EXP Statistics
 	RTABMAP_STATS(Loop, Visual_matches,);
 	RTABMAP_STATS(Loop, Last_id,);
 	RTABMAP_STATS(Loop, Optimization_max_error, m);
+	RTABMAP_STATS(Loop, Optimization_max_error_ratio, );
 	RTABMAP_STATS(Loop, Optimization_error, );
 	RTABMAP_STATS(Loop, Optimization_iterations, );
+	RTABMAP_STATS(Loop, Linear_variance,);
+	RTABMAP_STATS(Loop, Angular_variance,);
+	RTABMAP_STATS(Loop, Landmark_detected,);
+	RTABMAP_STATS(Loop, Landmark_detected_node_ref,);
 
 	RTABMAP_STATS(Proximity, Time_detections,);
 	RTABMAP_STATS(Proximity, Space_last_detection_id,);
@@ -77,7 +82,10 @@ class RTABMAP_EXP Statistics
 
 	RTABMAP_STATS(NeighborLinkRefining, Accepted,);
 	RTABMAP_STATS(NeighborLinkRefining, Inliers,);
-	RTABMAP_STATS(NeighborLinkRefining, Inliers_ratio,);
+	RTABMAP_STATS(NeighborLinkRefining, ICP_inliers_ratio,);
+	RTABMAP_STATS(NeighborLinkRefining, ICP_rotation, rad);
+	RTABMAP_STATS(NeighborLinkRefining, ICP_translation, m);
+	RTABMAP_STATS(NeighborLinkRefining, ICP_complexity,);
 	RTABMAP_STATS(NeighborLinkRefining, Variance,);
 	RTABMAP_STATS(NeighborLinkRefining, Pts,);
 
@@ -95,13 +103,17 @@ class RTABMAP_EXP Statistics
 	RTABMAP_STATS(Memory, Rehearsal_merged,);
 	RTABMAP_STATS(Memory, Local_graph_size,);
 	RTABMAP_STATS(Memory, Small_movement,);
+	RTABMAP_STATS(Memory, Fast_movement,);
 	RTABMAP_STATS(Memory, Odometry_variance_ang,);
 	RTABMAP_STATS(Memory, Odometry_variance_lin,);
 	RTABMAP_STATS(Memory, Distance_travelled, m);
+	RTABMAP_STATS(Memory, RAM_usage, MB);
+	RTABMAP_STATS(Memory, Triangulated_points, );
 
 	RTABMAP_STATS(Timing, Memory_update, ms);
 	RTABMAP_STATS(Timing, Neighbor_link_refining, ms);
 	RTABMAP_STATS(Timing, Proximity_by_time, ms);
+	RTABMAP_STATS(Timing, Proximity_by_space_visual, ms);
 	RTABMAP_STATS(Timing, Proximity_by_space, ms);
 	RTABMAP_STATS(Timing, Cleaning_neighbors, ms);
 	RTABMAP_STATS(Timing, Reactivation, ms);
@@ -117,6 +129,7 @@ class RTABMAP_EXP Statistics
 	RTABMAP_STATS(Timing, Forgetting, ms);
 	RTABMAP_STATS(Timing, Joining_trash, ms);
 	RTABMAP_STATS(Timing, Emptying_trash, ms);
+	RTABMAP_STATS(Timing, Finalizing_statistics, ms);
 
 	RTABMAP_STATS(TimingMem, Pre_update, ms);
 	RTABMAP_STATS(TimingMem, Signature_creation, ms);
@@ -125,18 +138,33 @@ class RTABMAP_EXP Statistics
 	RTABMAP_STATS(TimingMem, Subpixel, ms);
 	RTABMAP_STATS(TimingMem, Stereo_correspondences, ms);
 	RTABMAP_STATS(TimingMem, Descriptors_extraction, ms);
+	RTABMAP_STATS(TimingMem, Rectification, ms);
 	RTABMAP_STATS(TimingMem, Keypoints_3D, ms);
+	RTABMAP_STATS(TimingMem, Keypoints_3D_motion, ms);
 	RTABMAP_STATS(TimingMem, Joining_dictionary_update, ms);
 	RTABMAP_STATS(TimingMem, Add_new_words, ms);
 	RTABMAP_STATS(TimingMem, Compressing_data, ms);
 	RTABMAP_STATS(TimingMem, Post_decimation, ms);
-	RTABMAP_STATS(TimingMem, Scan_downsampling, ms);
-	RTABMAP_STATS(TimingMem, Scan_normals, ms);
+	RTABMAP_STATS(TimingMem, Scan_filtering, ms);
 	RTABMAP_STATS(TimingMem, Occupancy_grid, ms);
+	RTABMAP_STATS(TimingMem, Markers_detection, ms);
 
 	RTABMAP_STATS(Keypoint, Dictionary_size, words);
 	RTABMAP_STATS(Keypoint, Indexed_words, words);
 	RTABMAP_STATS(Keypoint, Index_memory_usage, KB);
+
+	RTABMAP_STATS(Gt, Translational_rmse, m);
+	RTABMAP_STATS(Gt, Translational_mean, m);
+	RTABMAP_STATS(Gt, Translational_median, m);
+	RTABMAP_STATS(Gt, Translational_std, m);
+	RTABMAP_STATS(Gt, Translational_min, m);
+	RTABMAP_STATS(Gt, Translational_max, m);
+	RTABMAP_STATS(Gt, Rotational_rmse, deg);
+	RTABMAP_STATS(Gt, Rotational_mean, deg);
+	RTABMAP_STATS(Gt, Rotational_median, deg);
+	RTABMAP_STATS(Gt, Rotational_std, deg);
+	RTABMAP_STATS(Gt, Rotational_min, deg);
+	RTABMAP_STATS(Gt, Rotational_max, deg);
 
 public:
 	static const std::map<std::string, float> & defaultData();
@@ -152,17 +180,22 @@ public:
 
 	// setters
 	void setExtended(bool extended) {_extended = extended;}
-	void setRefImageId(int refImageId) {_refImageId = refImageId;}
-	void setLoopClosureId(int loopClosureId) {_loopClosureId = loopClosureId;}
+	void setRefImageId(int id) {_refImageId = id;}
+	void setRefImageMapId(int id) {_refImageMapId = id;}
+	void setLoopClosureId(int id) {_loopClosureId = id;}
+	void setLoopClosureMapId(int id) {_loopClosureMapId = id;}
 	void setProximityDetectionId(int id) {_proximiyDetectionId = id;}
+	void setProximityDetectionMapId(int id) {_proximiyDetectionMapId = id;}
 	void setStamp(double stamp) {_stamp = stamp;}
 
-	void setSignatures(const std::map<int, Signature> & signatures) {_signatures = signatures;}
+	void setLastSignatureData(const Signature & data) {_lastSignatureData = data;}
 
 	void setPoses(const std::map<int, Transform> & poses) {_poses = poses;}
 	void setConstraints(const std::multimap<int, Link> & constraints) {_constraints = constraints;}
 	void setMapCorrection(const Transform & mapCorrection) {_mapCorrection = mapCorrection;}
 	void setLoopClosureTransform(const Transform & loopClosureTransform) {_loopClosureTransform = loopClosureTransform;}
+	void setLocalizationCovariance(const cv::Mat & covariance) {_localizationCovariance = covariance;}
+	void setLabels(const std::map<int, std::string> & labels) {_labels = labels;}
 	void setWeights(const std::map<int, int> & weights) {_weights = weights;}
 	void setPosterior(const std::map<int, float> & posterior) {_posterior = posterior;}
 	void setLikelihood(const std::map<int, float> & likelihood) {_likelihood = likelihood;}
@@ -170,20 +203,26 @@ public:
 	void setLocalPath(const std::vector<int> & localPath) {_localPath=localPath;}
 	void setCurrentGoalId(int goal) {_currentGoalId=goal;}
 	void setReducedIds(const std::map<int, int> & reducedIds) {_reducedIds = reducedIds;}
+	void setWmState(const std::vector<int> & state) {_wmState = state;}
 
 	// getters
 	bool extended() const {return _extended;}
 	int refImageId() const {return _refImageId;}
+	int refImageMapId() const {return _refImageMapId;}
 	int loopClosureId() const {return _loopClosureId;}
+	int loopClosureMapId() const {return _loopClosureMapId;}
 	int proximityDetectionId() const {return _proximiyDetectionId;}
+	int proximityDetectionMapId() const {return _proximiyDetectionMapId;}
 	double stamp() const {return _stamp;}
 
-	const std::map<int, Signature> & getSignatures() const {return _signatures;}
+	const Signature & getLastSignatureData() const {return _lastSignatureData;}
 
 	const std::map<int, Transform> & poses() const {return _poses;}
 	const std::multimap<int, Link> & constraints() const {return _constraints;}
 	const Transform & mapCorrection() const {return _mapCorrection;}
 	const Transform & loopClosureTransform() const {return _loopClosureTransform;}
+	const cv::Mat & localizationCovariance() const {return _localizationCovariance;}
+	const std::map<int, std::string> & labels() const {return _labels;}
 	const std::map<int, int> & weights() const {return _weights;}
 	const std::map<int, float> & posterior() const {return _posterior;}
 	const std::map<int, float> & likelihood() const {return _likelihood;}
@@ -191,6 +230,7 @@ public:
 	const std::vector<int> & localPath() const {return _localPath;}
 	int currentGoalId() const {return _currentGoalId;}
 	const std::map<int, int> & reducedIds() const {return _reducedIds;}
+	const std::vector<int> & wmState() const {return _wmState;}
 
 	const std::map<std::string, float> & data() const {return _data;}
 
@@ -198,17 +238,22 @@ private:
 	bool _extended; // 0 -> only loop closure and last signature ID fields are filled
 
 	int _refImageId;
+	int _refImageMapId;
 	int _loopClosureId;
+	int _loopClosureMapId;
 	int _proximiyDetectionId;
+	int _proximiyDetectionMapId;
 	double _stamp;
 
-	std::map<int, Signature> _signatures;
+	Signature _lastSignatureData;
 
 	std::map<int, Transform> _poses;
 	std::multimap<int, Link> _constraints;
 	Transform _mapCorrection;
 	Transform _loopClosureTransform;
+	cv::Mat _localizationCovariance;
 
+	std::map<int, std::string> _labels;
 	std::map<int, int> _weights;
 	std::map<int, float> _posterior;
 	std::map<int, float> _likelihood;
@@ -218,6 +263,8 @@ private:
 	int _currentGoalId;
 
 	std::map<int, int> _reducedIds;
+
+	std::vector<int> _wmState;
 
 	// Format for statistics (Plottable statistics must go in that map) :
 	// {"Group/Name/Unit", value}

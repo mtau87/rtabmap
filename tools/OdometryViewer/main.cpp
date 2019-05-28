@@ -30,8 +30,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <rtabmap/utilite/UFile.h>
 #include <rtabmap/utilite/UConversion.h>
 #include <rtabmap/utilite/UStl.h>
-#include <rtabmap/core/OdometryF2F.h>
-#include <rtabmap/core/OdometryMono.h>
+#include <rtabmap/core/Odometry.h>
 #include <rtabmap/core/OdometryThread.h>
 #include <rtabmap/gui/OdometryViewer.h>
 #include <rtabmap/core/CameraThread.h>
@@ -42,7 +41,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <QApplication>
 #include <QPushButton>
 #include <pcl/console/print.h>
-#include <rtabmap/core/OdometryF2M.h>
 
 void showUsage()
 {
@@ -191,6 +189,7 @@ int main (int argc, char * argv[])
 	float maxDepth = 4.0f;
 	float voxelSize = rtabmap::Parameters::defaultIcpVoxelSize();
 	int normalsK = 0;
+	float normalsRadius = 0.0f;
 	if(regStrategy == 1 || regStrategy == 2)
 	{
 		// icp requires scans
@@ -203,8 +202,10 @@ int main (int argc, char * argv[])
 		rtabmap::Parameters::parse(parameters, rtabmap::Parameters::kIcpPointToPlane(), pointToPlane);
 		if(pointToPlane)
 		{
-			normalsK = rtabmap::Parameters::defaultIcpPointToPlaneNormalNeighbors();
-			rtabmap::Parameters::parse(parameters, rtabmap::Parameters::kIcpPointToPlaneNormalNeighbors(), normalsK);
+			normalsK = rtabmap::Parameters::defaultIcpPointToPlaneK();
+			rtabmap::Parameters::parse(parameters, rtabmap::Parameters::kIcpPointToPlaneK(), normalsK);
+			normalsRadius = rtabmap::Parameters::defaultIcpPointToPlaneRadius();
+			rtabmap::Parameters::parse(parameters, rtabmap::Parameters::kIcpPointToPlaneRadius(), normalsRadius);
 		}
 
 		uInsert(parameters, rtabmap::ParametersPair(rtabmap::Parameters::kIcpDownsamplingStep(), "1"));
@@ -310,7 +311,7 @@ int main (int argc, char * argv[])
 		{
 			rtabmap::CameraThread cameraThread(camera, parameters);
 
-			cameraThread.setScanFromDepth(icp, decimation<1?1:decimation, maxDepth, voxelSize, normalsK);
+			cameraThread.setScanParameters(icp, decimation<1?1:decimation, 0, maxDepth, voxelSize, normalsK, normalsRadius);
 
 			odomThread.start();
 			cameraThread.start();

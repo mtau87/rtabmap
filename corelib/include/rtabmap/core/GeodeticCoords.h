@@ -25,6 +25,20 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+/*
+ * The methods in this file were modified from the originals of the MRPT toolkit (see notice below):
+ * https://github.com/MRPT/mrpt/blob/master/libs/topography/src/conversions.cpp
+ */
+
+/* +---------------------------------------------------------------------------+
+   |                     Mobile Robot Programming Toolkit (MRPT)               |
+   |                          http://www.mrpt.org/                             |
+   |                                                                           |
+   | Copyright (c) 2005-2016, Individual contributors, see AUTHORS file        |
+   | See: http://www.mrpt.org/Authors - All rights reserved.                   |
+   | Released under BSD License. See details in http://www.mrpt.org/License    |
+   +---------------------------------------------------------------------------+ */
+
 
 #ifndef GEODETICCOORDS_H_
 #define GEODETICCOORDS_H_
@@ -51,6 +65,15 @@ public:
 
 	cv::Point3d toGeocentric_WGS84() const;
 	cv::Point3d toENU_WGS84(const GeodeticCoords & origin) const; // East=X, North=Y
+
+	void fromGeocentric_WGS84(const cv::Point3d& geocentric);
+	void fromENU_WGS84(const cv::Point3d & enu, const GeodeticCoords & origin);
+
+	static cv::Point3d ENU_WGS84ToGeocentric_WGS84(const cv::Point3d & enu, const GeodeticCoords & origin);
+	static cv::Point3d Geocentric_WGS84ToENU_WGS84(
+			const cv::Point3d & geocentric_WGS84,
+			const cv::Point3d & origin_geocentric_WGS84,
+			const GeodeticCoords & origin);
 
 private:
 	double latitude_;  // deg

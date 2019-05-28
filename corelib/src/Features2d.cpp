@@ -40,6 +40,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <opencv2/core/version.hpp>
 #include <opencv2/opencv_modules.hpp>
 
+#ifdef RTABMAP_ORB_OCTREE
+#include "opencv/ORBextractor.h"
+#endif
+
 #if CV_MAJOR_VERSION < 3
 #include "opencv/Orb.h"
 #ifdef HAVE_OPENCV_GPU
@@ -327,7 +331,9 @@ Feature2D::Feature2D(const ParametersMap & parameters) :
 		_roiRatios(std::vector<float>(4, 0.0f)),
 		_subPixWinSize(Parameters::defaultKpSubPixWinSize()),
 		_subPixIterations(Parameters::defaultKpSubPixIterations()),
-		_subPixEps(Parameters::defaultKpSubPixEps())
+		_subPixEps(Parameters::defaultKpSubPixEps()),
+		gridRows_(Parameters::defaultKpGridRows()),
+		gridCols_(Parameters::defaultKpGridCols())
 {
 	_stereo = new Stereo(parameters);
 	this->parseParameters(parameters);
@@ -346,6 +352,14 @@ void Feature2D::parseParameters(const ParametersMap & parameters)
 	Parameters::parse(parameters, Parameters::kKpSubPixWinSize(), _subPixWinSize);
 	Parameters::parse(parameters, Parameters::kKpSubPixIterations(), _subPixIterations);
 	Parameters::parse(parameters, Parameters::kKpSubPixEps(), _subPixEps);
+	Parameters::parse(parameters, Parameters::kKpGridRows(), gridRows_);
+	Parameters::parse(parameters, Parameters::kKpGridCols(), gridCols_);
+
+	UASSERT(gridRows_ >= 1 && gridCols_>=1);
+	if(maxFeatures_ > 0)
+	{
+		maxFeatures_ =	maxFeatures_ / (gridRows_ * gridCols_);
+	}
 
 	// convert ROI from string to vector
 	ParametersMap::const_iterator iter;
@@ -414,8 +428,7 @@ Feature2D * Feature2D::create(Feature2D::Type type, const ParametersMap & parame
 	if(type == Feature2D::kFeatureFastBrief ||
 	   type == Feature2D::kFeatureFastFreak ||
 	   type == Feature2D::kFeatureGfttBrief ||
-	   type == Feature2D::kFeatureGfttFreak ||
-	   type == Feature2D::kFeatureFreak)
+	   type == Feature2D::kFeatureGfttFreak)
 	{
 		UWARN("BRIEF and FREAK features cannot be used because OpenCV was not built with xfeatures2d module. ORB is used instead.");
 		type = Feature2D::kFeatureOrb;
@@ -424,10 +437,23 @@ Feature2D * Feature2D::create(Feature2D::Type type, const ParametersMap & parame
 #endif
 
 #if CV_MAJOR_VERSION < 3
-	if(type == Feature2D::kFeatureFreak)
+	if(type == Feature2D::kFeatureKaze)
 	{
-		UWARN("FREAK detector/descriptor can be used only with OpenCV3. GFTT/FREAK is used instead.");
-		type = Feature2D::kFeatureGfttFreak;
+#ifdef RTABMAP_NONFREE
+		UWARN("KAZE detector/descriptor can be used only with OpenCV3. SURF is used instead.");
+		type = Feature2D::kFeatureSurf;
+#else
+		UWARN("KAZE detector/descriptor can be used only with OpenCV3. ORB is used instead.");
+		type = Feature2D::kFeatureOrb;
+#endif
+	}
+#endif
+
+#ifndef RTABMAP_ORB_OCTREE
+	if(type == Feature2D::kFeatureOrbOctree)
+	{
+		UWARN("ORB OcTree feature cannot be used as RTAB-Map is not built with the option enabled. ORB is used instead.");
+		type = Feature2D::kFeatureOrb;
 	}
 #endif
 
@@ -461,6 +487,12 @@ Feature2D * Feature2D::create(Feature2D::Type type, const ParametersMap & parame
 	case Feature2D::kFeatureBrisk:
 		feature2D = new BRISK(parameters);
 		break;
+	case Feature2D::kFeatureKaze:
+		feature2D = new KAZE(parameters);
+		break;
+	case Feature2D::kFeatureOrbOctree:
+		feature2D = new ORBOctree(parameters);
+		break;
 #ifdef RTABMAP_NONFREE
 	default:
 		feature2D = new SURF(parameters);
@@ -477,7 +509,7 @@ Feature2D * Feature2D::create(Feature2D::Type type, const ParametersMap & parame
 	return feature2D;
 }
 
-std::vector<cv::KeyPoint> Feature2D::generateKeypoints(const cv::Mat & image, const cv::Mat & maskIn) const
+std::vector<cv::KeyPoint> Feature2D::generateKeypoints(const cv::Mat & image, const cv::Mat & maskIn)
 {
 	UASSERT(!image.empty());
 	UASSERT(image.type() == CV_8UC1);
@@ -526,23 +558,36 @@ std::vector<cv::KeyPoint> Feature2D::generateKeypoints(const cv::Mat & image, co
 
 	std::vector<cv::KeyPoint> keypoints;
 	UTimer timer;
+	cv::Rect globalRoi = Feature2D::computeRoi(image, _roiRatios);
+	if(!(globalRoi.width && globalRoi.height))
+	{
+		globalRoi = cv::Rect(0,0,image.cols, image.rows);
+	}
 
 	// Get keypoints
-	cv::Rect roi = Feature2D::computeRoi(image, _roiRatios);
-	keypoints = this->generateKeypointsImpl(image, roi.width && roi.height?roi:cv::Rect(0,0,image.cols, image.rows), mask);
-	UDEBUG("Keypoints extraction time = %f s, keypoints extracted = %d (mask empty=%d)", timer.ticks(), keypoints.size(), mask.empty()?1:0);
-
-	limitKeypoints(keypoints, maxFeatures_);
-
-	if(roi.x || roi.y)
+	int rowSize = globalRoi.height / gridRows_;
+	int colSize = globalRoi.width / gridCols_;
+	for (int i = 0; i<gridRows_; ++i)
 	{
-		// Adjust keypoint position to raw image
-		for(std::vector<cv::KeyPoint>::iterator iter=keypoints.begin(); iter!=keypoints.end(); ++iter)
+		for (int j = 0; j<gridCols_; ++j)
 		{
-			iter->pt.x += roi.x;
-			iter->pt.y += roi.y;
+			cv::Rect roi(globalRoi.x + j*colSize, globalRoi.y + i*rowSize, colSize, rowSize);
+			std::vector<cv::KeyPoint> sub_keypoints;
+			sub_keypoints = this->generateKeypointsImpl(image, roi, mask);
+			limitKeypoints(sub_keypoints, maxFeatures_);
+			if(roi.x || roi.y)
+			{
+				// Adjust keypoint position to raw image
+				for(std::vector<cv::KeyPoint>::iterator iter=sub_keypoints.begin(); iter!=sub_keypoints.end(); ++iter)
+				{
+					iter->pt.x += roi.x;
+					iter->pt.y += roi.y;
+				}
+			}
+			keypoints.insert( keypoints.end(), sub_keypoints.begin(), sub_keypoints.end() );
 		}
 	}
+	UDEBUG("Keypoints extraction time = %f s, keypoints extracted = %d (mask empty=%d)", timer.ticks(), keypoints.size(), mask.empty()?1:0);
 
 	if(keypoints.size() && _subPixWinSize > 0 && _subPixIterations > 0)
 	{
@@ -695,7 +740,7 @@ void SURF::parseParameters(const ParametersMap & parameters)
 #endif
 }
 
-std::vector<cv::KeyPoint> SURF::generateKeypointsImpl(const cv::Mat & image, const cv::Rect & roi, const cv::Mat & mask) const
+std::vector<cv::KeyPoint> SURF::generateKeypointsImpl(const cv::Mat & image, const cv::Rect & roi, const cv::Mat & mask)
 {
 	UASSERT(!image.empty() && image.channels() == 1 && image.depth() == CV_8U);
 	std::vector<cv::KeyPoint> keypoints;
@@ -803,7 +848,7 @@ void SIFT::parseParameters(const ParametersMap & parameters)
 #endif
 }
 
-std::vector<cv::KeyPoint> SIFT::generateKeypointsImpl(const cv::Mat & image, const cv::Rect & roi, const cv::Mat & mask) const
+std::vector<cv::KeyPoint> SIFT::generateKeypointsImpl(const cv::Mat & image, const cv::Rect & roi, const cv::Mat & mask)
 {
 	UASSERT(!image.empty() && image.channels() == 1 && image.depth() == CV_8U);
 	std::vector<cv::KeyPoint> keypoints;
@@ -893,11 +938,11 @@ void ORB::parseParameters(const ParametersMap & parameters)
 		gpu_ = false;
 	}
 #endif
-	if(gpu_)
+	if(gpu_ && cv::cuda::getCudaEnabledDeviceCount() == 0)
 	{
-		UWARN("GPU version of ORB available but not implemented yet! Using CPU version instead...");
+		UWARN("GPU version of ORB not available (no GPU found)! Using CPU version instead...");
+		gpu_ = false;
 	}
-	gpu_ = false;
 #endif
 	if(gpu_)
 	{
@@ -910,7 +955,7 @@ void ORB::parseParameters(const ParametersMap & parameters)
 #endif
 #else
 #ifdef HAVE_OPENCV_CUDAFEATURES2D
-		UFATAL("not implemented");
+		_gpuOrb = CV_ORB_GPU::create(this->getMaxFeatures(), scaleFactor_, nLevels_, edgeThreshold_, firstLevel_, WTA_K_, scoreType_, patchSize_, fastThreshold_);
 #endif
 #endif
 	}
@@ -918,13 +963,15 @@ void ORB::parseParameters(const ParametersMap & parameters)
 	{
 #if CV_MAJOR_VERSION < 3
 		_orb = cv::Ptr<CV_ORB>(new CV_ORB(this->getMaxFeatures(), scaleFactor_, nLevels_, edgeThreshold_, firstLevel_, WTA_K_, scoreType_, patchSize_, parameters));
+#elif CV_MAJOR_VERSION > 3
+		_orb = CV_ORB::create(this->getMaxFeatures(), scaleFactor_, nLevels_, edgeThreshold_, firstLevel_, WTA_K_, (cv::ORB::ScoreType)scoreType_, patchSize_, fastThreshold_);
 #else
 		_orb = CV_ORB::create(this->getMaxFeatures(), scaleFactor_, nLevels_, edgeThreshold_, firstLevel_, WTA_K_, scoreType_, patchSize_, fastThreshold_);
 #endif
 	}
 }
 
-std::vector<cv::KeyPoint> ORB::generateKeypointsImpl(const cv::Mat & image, const cv::Rect & roi, const cv::Mat & mask) const
+std::vector<cv::KeyPoint> ORB::generateKeypointsImpl(const cv::Mat & image, const cv::Rect & roi, const cv::Mat & mask)
 {
 	UASSERT(!image.empty() && image.channels() == 1 && image.depth() == CV_8U);
 	std::vector<cv::KeyPoint> keypoints;
@@ -947,7 +994,14 @@ std::vector<cv::KeyPoint> ORB::generateKeypointsImpl(const cv::Mat & image, cons
 #endif
 #else
 #ifdef HAVE_OPENCV_CUDAFEATURES2D
-		UFATAL("not implemented");
+		cv::cuda::GpuMat d_image(imgRoi);
+		cv::cuda::GpuMat d_mask(maskRoi);
+		try {
+			_gpuOrb->detectAndCompute(d_image, d_mask, keypoints, cv::cuda::GpuMat(), false);
+		} catch (cv::Exception& e) {
+			const char* err_msg = e.what();
+			UWARN("OpenCV exception caught: %s", err_msg);
+		}
 #endif
 #endif
 	}
@@ -988,10 +1042,23 @@ cv::Mat ORB::generateDescriptorsImpl(const cv::Mat & image, std::vector<cv::KeyP
 		UERROR("GPU version of ORB not available (OpenCV not built with gpu/cuda module)! Using CPU version instead...");
 #endif
 #else
-		cv::cuda::GpuMat imgGpu(image);
-		cv::cuda::GpuMat descriptorsGPU;
 #ifdef HAVE_OPENCV_CUDAFEATURES2D
-		UFATAL("not implemented");
+		cv::cuda::GpuMat d_image(image);
+		cv::cuda::GpuMat d_descriptors;
+		try {
+			_gpuOrb->detectAndCompute(d_image, cv::cuda::GpuMat(), keypoints, d_descriptors, true);
+		} catch (cv::Exception& e) {
+			const char* err_msg = e.what();
+			UWARN("OpenCV exception caught: %s", err_msg);
+		}
+		// Download descriptors
+		if (d_descriptors.empty())
+			descriptors = cv::Mat();
+		else
+		{
+			UASSERT(d_descriptors.type() == CV_32F || d_descriptors.type() == CV_8U);
+			d_descriptors.download(descriptors);
+		}
 #endif
 #endif
 	}
@@ -1112,7 +1179,7 @@ void FAST::parseParameters(const ParametersMap & parameters)
 	}
 }
 
-std::vector<cv::KeyPoint> FAST::generateKeypointsImpl(const cv::Mat & image, const cv::Rect & roi, const cv::Mat & mask) const
+std::vector<cv::KeyPoint> FAST::generateKeypointsImpl(const cv::Mat & image, const cv::Rect & roi, const cv::Mat & mask)
 {
 	UASSERT(!image.empty() && image.channels() == 1 && image.depth() == CV_8U);
 	std::vector<cv::KeyPoint> keypoints;
@@ -1278,7 +1345,7 @@ void GFTT::parseParameters(const ParametersMap & parameters)
 #endif
 }
 
-std::vector<cv::KeyPoint> GFTT::generateKeypointsImpl(const cv::Mat & image, const cv::Rect & roi, const cv::Mat & mask) const
+std::vector<cv::KeyPoint> GFTT::generateKeypointsImpl(const cv::Mat & image, const cv::Rect & roi, const cv::Mat & mask)
 {
 	UASSERT(!image.empty() && image.channels() == 1 && image.depth() == CV_8U);
 	std::vector<cv::KeyPoint> keypoints;
@@ -1447,7 +1514,7 @@ void BRISK::parseParameters(const ParametersMap & parameters)
 #endif
 }
 
-std::vector<cv::KeyPoint> BRISK::generateKeypointsImpl(const cv::Mat & image, const cv::Rect & roi, const cv::Mat & mask) const
+std::vector<cv::KeyPoint> BRISK::generateKeypointsImpl(const cv::Mat & image, const cv::Rect & roi, const cv::Mat & mask)
 {
 	UASSERT(!image.empty() && image.channels() == 1 && image.depth() == CV_8U);
 	std::vector<cv::KeyPoint> keypoints;
@@ -1469,73 +1536,139 @@ cv::Mat BRISK::generateDescriptorsImpl(const cv::Mat & image, std::vector<cv::Ke
 	return descriptors;
 }
 
-
 //////////////////////////
-//FREAK
+//KAZE
 //////////////////////////
-FREAK::FREAK(const ParametersMap & parameters) :
-	orientationNormalized_(Parameters::defaultFREAKOrientationNormalized()),
-	scaleNormalized_(Parameters::defaultFREAKScaleNormalized()),
-	patternScale_(Parameters::defaultFREAKPatternScale()),
-	nOctaves_(Parameters::defaultFREAKNOctaves())
+KAZE::KAZE(const ParametersMap & parameters) :
+		extended_(Parameters::defaultKAZEExtended()),
+		upright_(Parameters::defaultKAZEUpright()),
+		threshold_(Parameters::defaultKAZEThreshold()),
+		nOctaves_(Parameters::defaultKAZENOctaves()),
+		nOctaveLayers_(Parameters::defaultKAZENOctaveLayers()),
+		diffusivity_(Parameters::defaultKAZEDiffusivity())
 {
 	parseParameters(parameters);
 }
 
-FREAK::~FREAK()
+KAZE::~KAZE()
 {
 }
 
-void FREAK::parseParameters(const ParametersMap & parameters)
+void KAZE::parseParameters(const ParametersMap & parameters)
 {
-	Parameters::parse(parameters, Parameters::kFREAKOrientationNormalized(), orientationNormalized_);
-	Parameters::parse(parameters, Parameters::kFREAKScaleNormalized(), scaleNormalized_);
-	Parameters::parse(parameters, Parameters::kFREAKPatternScale(), patternScale_);
-	Parameters::parse(parameters, Parameters::kFREAKNOctaves(), nOctaves_);
+	Feature2D::parseParameters(parameters);
+	
+	Parameters::parse(parameters, Parameters::kKAZEExtended(), extended_);
+	Parameters::parse(parameters, Parameters::kKAZEUpright(), upright_);
+	Parameters::parse(parameters, Parameters::kKAZEThreshold(), threshold_);
+	Parameters::parse(parameters, Parameters::kKAZENOctaves(), nOctaves_);
+	Parameters::parse(parameters, Parameters::kKAZENOctaveLayers(), nOctaveLayers_);
+	Parameters::parse(parameters, Parameters::kKAZEDiffusivity(), diffusivity_);
 
-#if CV_MAJOR_VERSION < 3
-	_freak = cv::Ptr<CV_FREAK>(new CV_FREAK(orientationNormalized_, scaleNormalized_, patternScale_, nOctaves_));
+#if CV_MAJOR_VERSION > 3
+	kaze_ = cv::KAZE::create(extended_, upright_, threshold_, nOctaves_, nOctaveLayers_, (cv::KAZE::DiffusivityType)diffusivity_);
+#elif CV_MAJOR_VERSION > 2
+	kaze_ = cv::KAZE::create(extended_, upright_, threshold_, nOctaves_, nOctaveLayers_, diffusivity_);
 #else
-#ifdef HAVE_OPENCV_XFEATURES2D
-	_freak = CV_FREAK::create(orientationNormalized_, scaleNormalized_, patternScale_, nOctaves_);
-#else
-	UWARN("RTAB-Map is not built with OpenCV xfeatures2d module so Freak cannot be used!");
-#endif
+	UWARN("RTAB-Map is not built with OpenCV3 so Kaze feature cannot be used!");
 #endif
 }
 
-std::vector<cv::KeyPoint> FREAK::generateKeypointsImpl(const cv::Mat & image, const cv::Rect & roi, const cv::Mat & mask) const
+std::vector<cv::KeyPoint> KAZE::generateKeypointsImpl(const cv::Mat & image, const cv::Rect & roi, const cv::Mat & mask)
 {
 	UASSERT(!image.empty() && image.channels() == 1 && image.depth() == CV_8U);
 	std::vector<cv::KeyPoint> keypoints;
-#ifdef HAVE_OPENCV_XFEATURES2D
+#if CV_MAJOR_VERSION > 2
 	cv::Mat imgRoi(image, roi);
 	cv::Mat maskRoi;
 	if (!mask.empty())
 	{
 		maskRoi = cv::Mat(mask, roi);
 	}
-	_freak->detect(imgRoi, keypoints, maskRoi); // Opencv keypoints
+	kaze_->detect(imgRoi, keypoints, maskRoi); // Opencv keypoints
 #else
-	UWARN("RTAB-Map is not built with OpenCV3 xfeatures2d module so Freak (for keypoint detection) cannot be used!");
+	UWARN("RTAB-Map is not built with OpenCV3 so Kaze feature cannot be used!");
 #endif
 	return keypoints;
 }
 
-cv::Mat FREAK::generateDescriptorsImpl(const cv::Mat & image, std::vector<cv::KeyPoint> & keypoints) const
+cv::Mat KAZE::generateDescriptorsImpl(const cv::Mat & image, std::vector<cv::KeyPoint> & keypoints) const
 {
 	UASSERT(!image.empty() && image.channels() == 1 && image.depth() == CV_8U);
 	cv::Mat descriptors;
-#if CV_MAJOR_VERSION < 3
-	_freak->compute(image, keypoints, descriptors);
+#if CV_MAJOR_VERSION > 2
+	kaze_->compute(image, keypoints, descriptors);
 #else
-#ifdef HAVE_OPENCV_XFEATURES2D
-	_freak->compute(image, keypoints, descriptors);
-#else
-	UWARN("RTAB-Map is not built with OpenCV xfeatures2d module so Freak cannot be used!");
-#endif
+	UWARN("RTAB-Map is not built with OpenCV3 so Kaze feature cannot be used!");
 #endif
 	return descriptors;
+}
+
+//////////////////////////
+//ORBOctree
+//////////////////////////
+ORBOctree::ORBOctree(const ParametersMap & parameters) :
+		scaleFactor_(Parameters::defaultORBScaleFactor()),
+		nLevels_(Parameters::defaultORBNLevels()),
+		fastThreshold_(Parameters::defaultFASTThreshold())
+{
+	parseParameters(parameters);
+}
+
+ORBOctree::~ORBOctree()
+{
+}
+
+void ORBOctree::parseParameters(const ParametersMap & parameters)
+{
+	Feature2D::parseParameters(parameters);
+
+	Parameters::parse(parameters, Parameters::kORBScaleFactor(), scaleFactor_);
+	Parameters::parse(parameters, Parameters::kORBNLevels(), nLevels_);
+
+	Parameters::parse(parameters, Parameters::kFASTThreshold(), fastThreshold_);
+	Parameters::parse(parameters, Parameters::kFASTMinThreshold(), fastMinThreshold_);
+
+#ifdef RTABMAP_ORB_OCTREE
+	_orb = cv::Ptr<ORBextractor>(new ORBextractor(this->getMaxFeatures(), scaleFactor_, nLevels_, fastThreshold_, fastMinThreshold_));
+#else
+	UWARN("RTAB-Map is not built with ORB OcTree option enabled so ORB OcTree feature cannot be used!");
+#endif
+}
+
+std::vector<cv::KeyPoint> ORBOctree::generateKeypointsImpl(const cv::Mat & image, const cv::Rect & roi, const cv::Mat & mask)
+{
+	std::vector<cv::KeyPoint> keypoints;
+	descriptors_ = cv::Mat();
+#ifdef RTABMAP_ORB_OCTREE
+	UASSERT(!image.empty() && image.channels() == 1 && image.depth() == CV_8U);
+	cv::Mat imgRoi(image, roi);
+	cv::Mat maskRoi;
+	if(!mask.empty())
+	{
+		maskRoi = cv::Mat(mask, roi);
+	}
+
+	(*_orb)(imgRoi, maskRoi, keypoints, descriptors_);
+
+	if((int)keypoints.size() > this->getMaxFeatures())
+	{
+		limitKeypoints(keypoints, descriptors_, this->getMaxFeatures());
+	}
+#else
+	UWARN("RTAB-Map is not built with ORB OcTree option enabled so ORB OcTree feature cannot be used!");
+#endif
+	return keypoints;
+}
+
+cv::Mat ORBOctree::generateDescriptorsImpl(const cv::Mat & image, std::vector<cv::KeyPoint> & keypoints) const
+{
+#ifdef RTABMAP_ORB_OCTREE
+	UASSERT_MSG((int)keypoints.size() == descriptors_.rows, uFormat("keypoints=%d descriptors=%d", (int)keypoints.size(), descriptors_.rows).c_str());
+#else
+	UWARN("RTAB-Map is not built with ORB OcTree option enabled so ORB OcTree feature cannot be used!");
+#endif
+	return descriptors_;
 }
 
 }

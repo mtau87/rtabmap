@@ -42,6 +42,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "rtabmap/utilite/UStl.h"
 #include <opencv2/core/core.hpp>
 #include <opencv2/features2d/features2d.hpp>
+#include <pcl/pcl_config.h>
 
 namespace rtabmap {
 
@@ -56,6 +57,7 @@ class RegistrationInfo;
 class RegistrationIcp;
 class Stereo;
 class OccupancyGrid;
+class MarkerDetector;
 
 class RTABMAP_EXP Memory
 {
@@ -75,6 +77,7 @@ public:
 	bool update(const SensorData & data,
 			const Transform & pose,
 			const cv::Mat & covariance,
+			const std::vector<float> & velocity = std::vector<float>(), // vx,vy,vz,vroll,vpitch,vyaw
 			Statistics * stats = 0);
 	bool init(const std::string & dbUrl,
 			bool dbOverwritten = false,
@@ -91,6 +94,29 @@ public:
 
 	int cleanup();
 	void saveStatistics(const Statistics & statistics);
+	void savePreviewImage(const cv::Mat & image) const;
+	cv::Mat loadPreviewImage() const;
+	void saveOptimizedPoses(const std::map<int, Transform> & optimizedPoses, const Transform & lastlocalizationPose) const;
+	std::map<int, Transform> loadOptimizedPoses(Transform * lastlocalizationPose) const;
+	void save2DMap(const cv::Mat & map, float xMin, float yMin, float cellSize) const;
+	cv::Mat load2DMap(float & xMin, float & yMin, float & cellSize) const;
+	void saveOptimizedMesh(
+			const cv::Mat & cloud,
+			const std::vector<std::vector<std::vector<unsigned int> > > & polygons = std::vector<std::vector<std::vector<unsigned int> > >(),      // Textures -> polygons -> vertices
+#if PCL_VERSION_COMPARE(>=, 1, 8, 0)
+			const std::vector<std::vector<Eigen::Vector2f, Eigen::aligned_allocator<Eigen::Vector2f> > > & texCoords = std::vector<std::vector<Eigen::Vector2f, Eigen::aligned_allocator<Eigen::Vector2f> > >(), // Textures -> uv coords for each vertex of the polygons
+#else
+			const std::vector<std::vector<Eigen::Vector2f> > & texCoords = std::vector<std::vector<Eigen::Vector2f> >(), // Textures -> uv coords for each vertex of the polygons
+#endif
+			const cv::Mat & textures = cv::Mat()) const; // concatenated textures (assuming square textures with all same size)
+	cv::Mat loadOptimizedMesh(
+			std::vector<std::vector<std::vector<unsigned int> > > * polygons = 0,
+#if PCL_VERSION_COMPARE(>=, 1, 8, 0)
+			std::vector<std::vector<Eigen::Vector2f, Eigen::aligned_allocator<Eigen::Vector2f> > > * texCoords = 0,
+#else
+			std::vector<std::vector<Eigen::Vector2f> > * texCoords = 0,
+#endif
+			cv::Mat * textures = 0) const;
 	void emptyTrash();
 	void joinTrashThread();
 	bool addLink(const Link & link, bool addInDatabase = false);
@@ -104,6 +130,8 @@ public:
 			bool incrementMarginOnLoop = false,
 			bool ignoreLoopIds = false,
 			bool ignoreIntermediateNodes = false,
+			bool ignoreLocalSpaceLoopIds = false,
+			const std::set<int> & nodesSet = std::set<int>(),
 			double * dbAccessTime = 0) const;
 	std::map<int, float> getNeighborsIdRadius(
 			int signatureId,
@@ -111,6 +139,7 @@ public:
 			const std::map<int, Transform> & optimizedPoses,
 			int maxGraphDepth) const;
 	void deleteLocation(int locationId, std::list<int> * deletedWords = 0);
+	void saveLocationData(int locationId);
 	void removeLink(int idA, int idB);
 	void removeRawData(int id, bool image = true, bool scan = true, bool userData = true);
 
@@ -122,17 +151,23 @@ public:
 			bool lookInDatabase = false) const;
 	std::map<int, Link> getLoopClosureLinks(int signatureId,
 			bool lookInDatabase = false) const;
-	std::map<int, Link> getLinks(int signatureId,
-			bool lookInDatabase = false) const;
-	std::multimap<int, Link> getAllLinks(bool lookInDatabase, bool ignoreNullLinks = true) const;
+	std::map<int, Link> getLinks(int signatureId, // can be also used to get links from landmarks
+			bool lookInDatabase = false,
+			bool withLandmarks = false) const;
+	std::multimap<int, Link> getAllLinks(bool lookInDatabase, bool ignoreNullLinks = true, bool withLandmarks = false) const;
 	bool isBinDataKept() const {return _binDataKept;}
 	float getSimilarityThreshold() const {return _similarityThreshold;}
 	std::map<int, int> getWeights() const;
 	int getLastSignatureId() const;
 	const Signature * getLastWorkingSignature() const;
+	std::map<int, Link> getNodesObservingLandmark(int landmarkId, bool lookInDatabase) const;
 	int getSignatureIdByLabel(const std::string & label, bool lookInDatabase = true) const;
 	bool labelSignature(int id, const std::string & label);
-	std::map<int, std::string> getAllLabels() const;
+	const std::map<int, std::string> & getAllLabels() const {return _labels;}
+	const std::map<int, std::set<int> > & getLandmarksIndex() const {return _landmarksIndex;}
+	const std::map<int, std::set<int> > & getLandmarksInvertedIndex() const {return _landmarksInvertedIndex;}
+	bool allNodesInWM() const {return _allNodesInWM;}
+
 	/**
 	 * Set user data. Detect automatically if raw or compressed. If raw, the data is
 	 * compressed too. A matrix of type CV_8UC1 with 1 row is considered as compressed.
@@ -143,9 +178,13 @@ public:
 	bool setUserData(int id, const cv::Mat & data);
 	int getDatabaseMemoryUsed() const; // in bytes
 	std::string getDatabaseVersion() const;
+	std::string getDatabaseUrl() const;
 	double getDbSavingTime() const;
+	int getMapId(int id, bool lookInDatabase = false) const;
 	Transform getOdomPose(int signatureId, bool lookInDatabase = false) const;
 	Transform getGroundTruthPose(int signatureId, bool lookInDatabase = false) const;
+	const std::map<int, Transform> & getGroundTruths() const {return _groundTruths;} // only those in working+STM memory
+	void getGPS(int id, GPS & gps, Transform & offsetENU, bool lookInDatabase, int maxGraphDepth = 0) const;
 	bool getNodeInfo(int signatureId,
 			Transform & odomPose,
 			int & mapId,
@@ -153,6 +192,9 @@ public:
 			std::string & label,
 			double & stamp,
 			Transform & groundTruth,
+			std::vector<float> & velocity,
+			GPS & gps,
+			EnvSensors & sensors,
 			bool lookInDatabase = false) const;
 	cv::Mat getImageCompressed(int signatureId) const;
 	SensorData getNodeData(int nodeId, bool uncompressedData = false) const;
@@ -175,6 +217,7 @@ public:
 	int getLastGlobalLoopClosureId() const {return _lastGlobalLoopClosureId;}
 	const Feature2D * getFeature2D() const {return _feature2D;}
 	bool isGraphReduced() const {return _reduceGraph;}
+	const std::vector<double> & getOdomMaxInf() const {return _odomMaxInf;}
 
 	void dumpMemoryTree(const char * fileNameTree) const;
 	virtual void dumpMemory(std::string directory) const;
@@ -191,11 +234,11 @@ public:
 			const std::set<int> & ids,
 			std::map<int, Transform> & poses,
 			std::multimap<int, Link> & links,
-			bool lookInDatabase = false);
+			bool lookInDatabase = false,
+			bool landmarksAdded = false);
 
 	Transform computeTransform(Signature & fromS, Signature & toS, Transform guess, RegistrationInfo * info = 0, bool useKnownCorrespondencesIfPossible = false) const;
 	Transform computeTransform(int fromId, int toId, Transform guess, RegistrationInfo * info = 0, bool useKnownCorrespondencesIfPossible = false);
-	Transform computeIcpTransform(int fromId, int toId, Transform guess, RegistrationInfo * info = 0);
 	Transform computeIcpTransformMulti(
 			int newId,
 			int oldId,
@@ -244,6 +287,8 @@ private:
 	bool _rawDescriptorsKept;
 	bool _saveDepth16Format;
 	bool _notLinkedNodesKeptInDb;
+	bool _saveIntermediateNodeData;
+	std::string _rgbCompressionFormat;
 	bool _incrementalMemory;
 	bool _reduceGraph;
 	int _maxStMemSize;
@@ -253,18 +298,28 @@ private:
 	bool _generateIds;
 	bool _badSignaturesIgnored;
 	bool _mapLabelsAdded;
+	bool _depthAsMask;
 	int _imagePreDecimation;
 	int _imagePostDecimation;
 	bool _compressionParallelized;
 	float _laserScanDownsampleStepSize;
+	float _laserScanVoxelSize;
 	int _laserScanNormalK;
+	float _laserScanNormalRadius;
 	bool _reextractLoopClosureFeatures;
+	bool _localBundleOnLoopClosure;
 	float _rehearsalMaxDistance;
 	float _rehearsalMaxAngle;
 	bool _rehearsalWeightIgnoredWhileMoving;
 	bool _useOdometryFeatures;
 	bool _createOccupancyGrid;
 	int _visMaxFeatures;
+	bool _imagesAlreadyRectified;
+	bool _rectifyOnlyFeatures;
+	bool _covOffDiagonalIgnored;
+	bool _detectMarkers;
+	float _markerLinVariance;
+	float _markerAngVariance;
 
 	int _idCount;
 	int _idMapCount;
@@ -273,10 +328,19 @@ private:
 	bool _memoryChanged; // False by default, become true only when Memory::update() is called.
 	bool _linksChanged; // False by default, become true when links are modified.
 	int _signaturesAdded;
+	bool _allNodesInWM;
+	GPS _gpsOrigin;
+	std::vector<CameraModel> _rectCameraModels;
+	StereoCameraModel _rectStereoCameraModel;
+	std::vector<double> _odomMaxInf;
 
 	std::map<int, Signature *> _signatures; // TODO : check if a signature is already added? although it is not supposed to occur...
 	std::set<int> _stMem; // id
 	std::map<int, double> _workingMem; // id,age
+	std::map<int, Transform> _groundTruths;
+	std::map<int, std::string> _labels;
+	std::map<int, std::set<int> > _landmarksIndex;         // <nodeId, landmarkIds>
+	std::map<int, std::set<int> > _landmarksInvertedIndex; // <landmarkId, nodeIds>
 
 	//Keypoint stuff
 	VWDictionary * _vwd;
@@ -286,9 +350,11 @@ private:
 	bool _parallelized;
 
 	Registration * _registrationPipeline;
-	RegistrationIcp * _registrationIcp;
+	RegistrationIcp * _registrationIcpMulti;
 
 	OccupancyGrid * _occupancy;
+
+	MarkerDetector * _markerDetector;
 };
 
 } // namespace rtabmap

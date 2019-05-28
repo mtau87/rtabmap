@@ -52,7 +52,7 @@ CameraViewer::CameraViewer(QWidget * parent, const ParametersMap & parameters) :
 	imageView_(new ImageView(this)),
 	cloudView_(new CloudViewer(this)),
 	processingImages_(false),
-	validDecimationValue_(1),
+	validDecimationValue_(2),
 	parameters_(parameters)
 {
 	qRegisterMetaType<rtabmap::SensorData>("rtabmap::SensorData");
@@ -68,7 +68,7 @@ CameraViewer::CameraViewer(QWidget * parent, const ParametersMap & parameters) :
 	decimationSpin_ = new QSpinBox(this);
 	decimationSpin_->setMinimum(1);
 	decimationSpin_->setMaximum(16);
-	decimationSpin_->setValue(1);
+	decimationSpin_->setValue(2);
 
 	pause_ = new QPushButton("Pause", this);
 	pause_->setCheckable(true);
@@ -136,7 +136,7 @@ void CameraViewer::showImage(const rtabmap::SensorData & data)
 	}
 	if(!data.depthOrRightRaw().empty())
 	{
-		imageView_->setImageDepth(uCvMat2QImage(util2d::decimate(data.depthOrRightRaw(), validDecimationValue_)));
+		imageView_->setImageDepth(util2d::decimate(data.depthOrRightRaw(), validDecimationValue_));
 	}
 
 	if(!data.depthOrRightRaw().empty() &&
@@ -157,7 +157,7 @@ void CameraViewer::showImage(const rtabmap::SensorData & data)
 		}
 	}
 
-	if(!data.laserScanRaw().empty())
+	if(!data.laserScanRaw().isEmpty())
 	{
 		showScanCheckbox_->setEnabled(true);
 		if(showScanCheckbox_->isChecked())

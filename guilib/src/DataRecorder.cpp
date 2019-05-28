@@ -70,11 +70,12 @@ bool DataRecorder::init(const QString & path, bool recordInRAM)
 	if(!memory_)
 	{
 		ParametersMap customParameters;
-		customParameters.insert(ParametersPair(Parameters::kMemRehearsalSimilarity(), "1.0")); // desactivate rehearsal
-		customParameters.insert(ParametersPair(Parameters::kKpMaxFeatures(), "-1")); // desactivate keypoints extraction
+		customParameters.insert(ParametersPair(Parameters::kMemRehearsalSimilarity(), "1.0")); // deactivate rehearsal
+		customParameters.insert(ParametersPair(Parameters::kKpMaxFeatures(), "-1")); // deactivate keypoints extraction
 		customParameters.insert(ParametersPair(Parameters::kMemBinDataKept(), "true")); // to keep images
 		customParameters.insert(ParametersPair(Parameters::kMemMapLabelsAdded(), "false")); // don't create map labels
-		customParameters.insert(ParametersPair(Parameters::kMemBadSignaturesIgnored(), "true")); // make usre memory cleanup is done
+		customParameters.insert(ParametersPair(Parameters::kMemBadSignaturesIgnored(), "true")); // make sure memory cleanup is done
+		customParameters.insert(ParametersPair(Parameters::kMemIntermediateNodeDataKept(), "true"));
 		if(!recordInRAM)
 		{
 			customParameters.insert(ParametersPair(Parameters::kDbSqlite3InMemory(), "false"));
@@ -140,14 +141,14 @@ void DataRecorder::addData(const rtabmap::SensorData & data, const Transform & p
 		const Signature * s = memory_->getLastWorkingSignature();
 		totalSizeKB_ += (int)s->sensorData().imageCompressed().total()/1000;
 		totalSizeKB_ += (int)s->sensorData().depthOrRightCompressed().total()/1000;
-		totalSizeKB_ += (int)s->sensorData().laserScanCompressed().total()/1000;
+		totalSizeKB_ += (int)s->sensorData().laserScanCompressed().data().total()/1000;
 		memory_->cleanup();
 
 		if(++count_ % 30)
 		{
 			memory_->emptyTrash();
 		}
-		UDEBUG("Time to process a message = %f s", time.ticks());
+		UDEBUG("Time to process a message = %f s, totalSizeKB_=%d", time.ticks(), totalSizeKB_);
 	}
 	memoryMutex_.unlock();
 }
@@ -156,7 +157,7 @@ void DataRecorder::showImage(const cv::Mat & image, const cv::Mat & depth)
 {
 	processingImages_ = true;
 	imageView_->setImage(uCvMat2QImage(image));
-	imageView_->setImageDepth(uCvMat2QImage(depth));
+	imageView_->setImageDepth(depth);
 	label_->setText(tr("Images=%1 (~%2 MB)").arg(count_).arg(totalSizeKB_/1000));
 	processingImages_ = false;
 }
@@ -179,7 +180,10 @@ bool DataRecorder::handleEvent(UEvent * event)
 				if(camEvent->data().isValid())
 				{
 					UINFO("Receiving rate = %f Hz", 1.0f/timer_.ticks());
-					this->addData(camEvent->data());
+					this->addData(
+							camEvent->data(),
+							camEvent->info().odomPose,
+							camEvent->info().odomCovariance.empty()?cv::Mat::eye(6,6,CV_64FC1):camEvent->info().odomCovariance);
 
 					if(!processingImages_ && this->isVisible() && camEvent->data().isValid())
 					{

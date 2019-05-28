@@ -30,7 +30,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <rtabmap/utilite/UThread.h>
 #include "MapBuilder.h"
 #include <pcl/visualization/cloud_viewer.h>
-#include <rtabmap/core/OdometryF2M.h>
+#include <rtabmap/core/Odometry.h>
 #include <QApplication>
 #include <stdio.h>
 
@@ -47,7 +47,7 @@ void showUsage()
 			"\n"
 			"Example:\n"
 			"     (with images from \"https://github.com/introlab/rtabmap/wiki/Stereo-mapping#process-a-directory-of-stereo-images\") \n"
-			"     $ rtabmap-noEventsExample 20 2 10 stereo_20hz stereo_20Hz stereo_20hz/left stereo_20hz/right\n"
+			"     $ rtabmap-noEventsExample 20 2 10 stereo_20Hz stereo_20Hz stereo_20Hz/left stereo_20Hz/right\n"
 			"       Camera rate = 20 Hz\n"
 			"       Odometry update rate = 10 Hz\n"
 			"       Map update rate = 1 Hz\n");
@@ -103,7 +103,7 @@ int main(int argc, char * argv[])
 
 	if(camera.init(calibrationDir, calibrationName))
 	{
-		OdometryF2M odom;
+		Odometry * odom = Odometry::create();
 		Rtabmap rtabmap;
 		rtabmap.init();
 
@@ -121,7 +121,7 @@ int main(int argc, char * argv[])
 			if(cameraIteration++ % odomUpdate == 0)
 			{
 				OdometryInfo info;
-				Transform pose = odom.process(data, &info);
+				Transform pose = odom->process(data, &info);
 
 				if(odometryIteration++ % mapUpdate == 0)
 				{
@@ -148,6 +148,7 @@ int main(int argc, char * argv[])
 
 			data = camera.takeImage();
 		}
+		delete odom;
 
 		if(mapBuilder.isVisible())
 		{

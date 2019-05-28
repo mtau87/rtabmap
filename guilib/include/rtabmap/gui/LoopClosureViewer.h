@@ -25,8 +25,8 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef LOOPCLOSUREVIEWER_H_
-#define LOOPCLOSUREVIEWER_H_
+#ifndef RTABMAP_LOOPCLOSUREVIEWER_H_
+#define RTABMAP_LOOPCLOSUREVIEWER_H_
 
 #include "rtabmap/gui/RtabmapGuiExp.h" // DLL export/import defines
 
@@ -53,7 +53,7 @@ public:
 	const Signature & sA() const {return sA_;}
 	const Signature & sB() const {return sB_;}
 
-public slots:
+public Q_SLOTS:
 	void setDecimation(int decimation) {decimation_ = decimation;}
 	void setMaxDepth(int maxDepth) {maxDepth_ = maxDepth;}
 	void setMinDepth(int minDepth) {minDepth_ = minDepth;}
